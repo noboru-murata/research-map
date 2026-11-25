@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<script>/* 明暗の既定は明．?theme=dark で暗く開く */
+(function () { var t = new URLSearchParams(location.search).get('theme'); document.documentElement.dataset.theme = t === 'dark' ? 'dark' : 'light'; })();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>N. Murata の研究の地図</title>
+<!-- N. Murata の研究の地図 (公開版)．多次元尺度構成法などで文献を地図にする．ネットは要らない． -->
+<script src="data/rmap-data.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f4f3f0; --surface-1: #fcfcfb; --surface-2: #efeeea;
+  --line: #dddbd5; --grid: #e9e7e2;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7c7b76;
+  --accent: #2a78d6; --ring: #0b0b0b; --edge: #c9c7c0; --cite: #b4b2aa; --nb: #eb6834;
+  --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #8a5cd6; --c5: #eda100; --c6: #e87ba4; --c7: #0f9bb3; --c8: #6b6a64; --c9: #9c6b3f;
+  --seq-lo: #dbe8f8; --seq-hi: #0d366b;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211; --surface-1: #1a1a19; --surface-2: #242422; --line: #34332f; --grid: #2a2a27;
+  --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+  --accent: #3987e5; --ring: #f0efec; --edge: #4a4944; --cite: #55544e; --nb: #d95926;
+  --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #9a72e0; --c5: #c98500; --c6: #d55181; --c7: #1aa7bf; --c8: #a3a29a; --c9: #b8875a;
+  --seq-lo: #1c3456; --seq-hi: #cde2fb;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--surface-0); color: var(--text-primary); font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Segoe UI", sans-serif;
+  display: grid; grid-template-rows: auto 1fr; overflow: hidden; }
+header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 7px 14px; border-bottom: 1px solid var(--line); background: var(--surface-1); }
+header h1 { font-size: 15px; margin: 0 6px 0 0; font-weight: 600; }
+header .grow { flex: 1; }
+header .note { color: var(--text-muted); font-size: 12px; }
+button, select, input[type=number], input[type=search] { font: inherit; color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; }
+button { cursor: pointer; }
+button:hover { background: var(--surface-2); }
+button.on { border-color: var(--accent); color: var(--accent); }
+.seg { display: inline-flex; }
+.seg button { border-radius: 0; margin-left: -1px; }
+.seg button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
+.seg button:last-child { border-radius: 0 6px 6px 0; }
+main { display: grid; grid-template-columns: 250px 1fr 330px; min-height: 0; }
+aside { overflow-y: auto; padding: 10px 12px; border-right: 1px solid var(--line); background: var(--surface-1); }
+aside.right { border-right: 0; border-left: 1px solid var(--line); }
+aside h2 { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 12px 0 5px; letter-spacing: .02em; }
+aside h2:first-child { margin-top: 0; }
+label.row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+.small { font-size: 11.5px; color: var(--text-muted); }
+.legend div { display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 1px 2px; border-radius: 4px; }
+.legend div:hover { background: var(--surface-2); }
+.legend div.off { opacity: .35; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.legend .cnt { margin-left: auto; color: var(--text-muted); font-size: 11px; }
+#panes { display: grid; grid-template-columns: 1fr; min-width: 0; min-height: 0; }
+#panes.two { grid-template-columns: 1fr 1fr; }
+.pane { display: grid; grid-template-rows: auto 1fr auto; min-width: 0; min-height: 0; border-right: 1px solid var(--line); }
+.pane:last-child { border-right: 0; }
+.pane .bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--surface-1); }
+.pane .bar b { font-size: 13px; }
+.pane .eval { padding: 4px 10px; border-top: 1px solid var(--line); background: var(--surface-1); color: var(--text-secondary); font-size: 12px; min-height: 26px; }
+.pane svg { width: 100%; height: 100%; display: block; cursor: grab; }
+.pane svg.drag { cursor: grabbing; }
+.pane .wrap { position: relative; min-height: 0; }
+.busy { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: color-mix(in srgb, var(--surface-0) 60%, transparent); color: var(--text-secondary); }
+.busy.show { display: flex; }
+.desc { font-size: 12px; color: var(--text-secondary); background: var(--surface-2); border-radius: 6px; padding: 6px 8px; margin: 4px 0; }
+#tip { position: fixed; pointer-events: none; background: var(--surface-1); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font-size: 12px; max-width: 360px; box-shadow: 0 2px 10px rgba(0,0,0,.12); display: none; z-index: 10; }
+#detail .title { font-size: 14px; font-weight: 600; line-height: 1.4; }
+#detail .meta { color: var(--text-secondary); margin: 3px 0 6px; }
+#detail .abs { font-size: 12px; color: var(--text-secondary); max-height: 170px; overflow-y: auto; border-left: 3px solid var(--line); padding-left: 8px; }
+#detail ol { padding-left: 20px; margin: 4px 0; }
+#detail li { cursor: pointer; margin: 2px 0; }
+#detail li:hover { color: var(--accent); }
+#detail li .d { color: var(--text-muted); font-size: 11px; }
+#detail li.both { font-weight: 600; }
+.tags span { display: inline-block; font-size: 11px; background: var(--surface-2); border-radius: 10px; padding: 0 7px; margin: 1px 2px 1px 0; }
+.bars div { display: grid; grid-template-columns: 150px 1fr 30px; gap: 4px; align-items: center; font-size: 11px; }
+.bars .b { height: 7px; background: var(--accent); border-radius: 3px; }
+a { color: var(--accent); }
+table.cmp { border-collapse: collapse; font-size: 11.5px; }
+table.cmp td, table.cmp th { padding: 2px 4px; text-align: center; border: 1px solid var(--line); }
+table.cmp th { font-weight: 500; color: var(--text-secondary); }
+#modal { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none; align-items: center; justify-content: center; z-index: 20; }
+#modal.show { display: flex; }
+#modal .box { background: var(--surface-1); border-radius: 10px; padding: 16px 20px; max-width: 900px; max-height: 88vh; overflow: auto; }
+text.lab { font-size: 10px; fill: var(--text-secondary); pointer-events: none; paint-order: stroke; stroke: var(--surface-0); stroke-width: 3px; }
+input[type=range] { width: 100%; }
+.mixrow { display: grid; grid-template-columns: 1fr 70px 26px; gap: 4px; align-items: center; font-size: 11.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>N. Murata の研究の地図</h1>
+  <span class="note" id="hdrnote"></span>
+  <span class="grow"></span>
+  <span class="seg"><button id="lay1" class="on">1 枚</button><button id="lay2">2 枚で比べる</button></span>
+  <button id="btnCmp" title="乖離度どうしの一致を表で見る">乖離度どうしの比較</button>
+  <button id="btnTheme">明暗</button>
+</header>
+<main>
+<aside>
+  <h2>色分け</h2>
+  <select id="colorBy" style="width:100%">
+    <option value="group">主題 (概念辞書の大分類)</option>
+    <option value="topic">話題 (全文の NMF)</option>
+    <option value="year">年</option>
+    <option value="source">出典 (bib / Scopus / docs)</option>
+    <option value="coauthor">主な共著者</option>
+    <option value="theme">主題の重み (下で選ぶ)</option>
+  </select>
+  <select id="themeSel" style="width:100%; margin-top:4px; display:none"></select>
+  <div class="legend" id="legend" style="margin-top:6px"></div>
+  <h2>年</h2>
+  <label class="row"><input type="checkbox" id="yearOn"> <span id="yearLab">年で絞る</span></label>
+  <input type="range" id="year" min="1992" max="2026" value="2026" step="1">
+  <label class="row"><button id="play">▶</button><span class="small">その年までに出た文献だけを濃く</span></label>
+  <h2>表示</h2>
+  <label class="row"><input type="checkbox" id="showCite"> 引用の線 (本人の論文の間)</label>
+  <label class="row"><input type="checkbox" id="showNN"> 近傍の線 (乖離度で近い <input type="number" id="kNN" value="3" min="1" max="10" style="width:42px"> 件)</label>
+  <label class="row"><input type="checkbox" id="showLab"> 名前 (第一著者と年)</label>
+  <label class="row"><input type="checkbox" id="hideOff"> 外した点を隠す</label>
+  <h2>関連文献 (村田の著作以外)</h2>
+  <label class="row"><input type="checkbox" id="relOn"> 地図に表示する (◇)</label>
+  <label class="row"><input type="checkbox" id="relCited" checked> 村田の論文 <input type="number" id="relMin" value="2" min="2" max="20" style="width:42px"> 本以上が引く</label>
+  <label class="row"><input type="checkbox" id="relContent" checked> 題・要旨が近い上位 <input type="number" id="relTop" value="30" min="0" max="100" step="5" style="width:48px"> 件</label>
+  <div class="small" id="relCount"></div>
+  <div class="small">村田の地図は固定して乖離度から差し込む (B)．点線は引いている論文 (C．「引用の線」で全部)．◇ の大きさは引かれた本数．</div>
+  <h2>検索</h2>
+  <input type="search" id="q" placeholder="題・著者・概念 (Enter)" style="width:100%">
+  <div class="small" id="qres"></div>
+  <h2>この版について</h2>
+  <div class="small">N. Murata の雑誌・国際会議の論文と，関係の深い他の著者の文献の地図．文献の情報は村田の文献データベース (Zotero) と Scopus から．要旨は載せていません (各文献は DOI のリンクから)．乖離度は要旨と全文から計算した値．2026-11-25 作成．</div>
+  <h2>印</h2>
+  <div class="small">● library.bib (要旨・PDF あり) &nbsp; ○ Scopus だけ (題のみ)．対象は雑誌と国際会議の論文 (書籍の章・著書・講義ノートは除く)．</div>
+  <div class="small" style="margin-top:8px">ホイールで拡大，ドラッグで移動 (3D では回転．Shift＋ドラッグで移動)，ダブルクリックで元に．点をクリックで詳細 (Shift で比べる先も)．Esc で解除．</div>
+</aside>
+<div id="panes"></div>
+<aside class="right" id="detail"><div class="small">点をクリックすると，題・要旨・概念・乖離度で近い文献を出します．</div></aside>
+</main>
+<div id="tip"></div>
+<div id="modal"><div class="box" id="modalBox"></div></div>
+
+<script>
+'use strict';
+const R = window.RMAP;
+const $ = s => document.querySelector(s);
+const DOCS = R.docs, N = DOCS.length, METRICS = R.metrics;
+const GROUP_OF = {}; R.groups.forEach((g, gi) => g.themes.forEach(t => { GROUP_OF[t] = gi; }));
+DOCS.forEach((d, i) => {
+  d.i = i; d.group = d.theme ? GROUP_OF[d.theme] : -1;
+  const fa = (d.authors[0] || '').split(',')[0];
+  d.short = fa + (d.authors.length > 2 ? '+' : d.authors.length === 2 ? '&' + (d.authors[1] || '').split(',')[0] : '') + ' ' + d.year;
+});
+// 主な共著者 (村田以外で件数の多い 7 人)
+const coCount = {}; DOCS.forEach(d => d.authors.forEach(a => { if (!/^Murata, N/.test(a)) coCount[a] = (coCount[a] || 0) + 1; }));
+const TOPCO = Object.entries(coCount).sort((a, b) => b[1] - a[1]).slice(0, 7).map(x => x[0]);
+DOCS.forEach(d => { const c = TOPCO.find(a => d.authors.includes(a)); d.co = c ? TOPCO.indexOf(c) : (d.authors.length <= 1 ? 7 : 8); });
+const MET = {}; METRICS.forEach(m => { MET[m.key] = m; m.pos = new Map(m.idx.map((g, l) => [g, l])); });
+// 関連文献 (村田の著作以外．build_features.py が選ぶ)．番号は村田の論文の後に続ける (N, N+1, ...)
+const REL = (R.related || []).map((r, k) => Object.assign(r, { i: N + k, rel: true, source: 'related', co: 8, group: r.theme ? GROUP_OF[r.theme] : -1,
+  short: (r.authors[0] || '').split(',')[0] + (r.authors.length > 2 ? '+' : r.authors.length === 2 ? '&' + (r.authors[1] || '').split(',')[0] : '') + ' ' + (r.year || '') }));
+const ALL = DOCS.concat(REL);
+const CA = R.ca;
+$('#hdrnote').textContent = `${N} 件 (library.bib ${DOCS.filter(d => d.source === 'library').length}，Scopus だけ ${DOCS.filter(d => d.source === 'scopus').length}${DOCS.some(d => d.source === 'docs') ? '，docs ' + DOCS.filter(d => d.source === 'docs').length : ''})．${R.generated} 作成`;
+
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+// 乖離度の値 (局所の番号 a<b)
+function mval(m, a, b) { if (a === b) return 0; if (a > b) [a, b] = [b, a]; const n = m.idx.length; return m.D[a * n - a * (a + 1) / 2 + (b - a - 1)]; }
+function pairMean(m, loc) { let s = 0, c = 0; for (let x = 0; x < loc.length; x++) for (let y = x + 1; y < loc.length; y++) { s += mval(m, loc[x], loc[y]); c++; } return s / Math.max(c, 1); }
+
+// ============================================================ 乖離度の行列を作る
+// spec = {metric: key or 'mix', weights: {key: w}, transform: 'none'|'geo'|'rank', k}
+function buildDelta(spec) {
+  let keys = spec.metric === 'mix' ? Object.keys(spec.weights).filter(k => spec.weights[k] > 0) : [spec.metric];
+  if (!keys.length) keys = ['concept'];
+  let idx = MET[keys[0]].idx.slice();
+  keys.slice(1).forEach(k => { const s = MET[k].pos; idx = idx.filter(g => s.has(g)); });
+  const n = idx.length, D = Array.from({ length: n }, () => new Float64Array(n));
+  let wsum = 0;
+  keys.forEach(k => {
+    const m = MET[k], loc = idx.map(g => m.pos.get(g)), w = spec.metric === 'mix' ? spec.weights[k] : 1;
+    const mean = spec.metric === 'mix' ? pairMean(m, loc) : 1;      // 混ぜるときは平均を 1 にそろえる
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) { const v = w * mval(m, loc[i], loc[j]) / mean; D[i][j] += v; D[j][i] += v; }
+    wsum += w;
+  });
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) D[i][j] /= wsum;
+  const means = {}; keys.forEach(k => { means[k] = spec.metric === 'mix' ? pairMean(MET[k], idx.map(g => MET[k].pos.get(g))) : 1; });
+  let out = D, note = '', sorted = null;
+  if (spec.transform === 'geo') { const g = geodesic(D, spec.k); out = g.D; note = g.broken ? `つながらない組 ${g.broken}` : ''; }
+  if (spec.transform === 'rank') { out = rankTransform(D); sorted = []; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) sorted.push(D[i][j]); sorted.sort((a, b) => a - b); }
+  let ss = 0, cc = 0; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) { ss += out[i][j] ** 2; cc++; }
+  const normK = Math.sqrt(cc / Math.max(ss, 1e-12));
+  return { idx, D: out.map(r => r.map(v => v * normK)), raw: D, keys, note, means, T: out, normK, sorted, spec: JSON.parse(JSON.stringify(spec)) };
+}
+// 関連文献 r から村田の論文 (res.idx) への乖離度を，地図に渡した δ と同じ物差しで作る．データが無ければ null
+function relRow(res, r) {
+  const n = res.idx.length, row = new Float64Array(n), spec = res.spec; let wsum = 0;
+  for (const k of res.keys) {
+    const m = MET[k], dv = r.dist && r.dist[k]; if (!dv) return null;
+    const w = spec.metric === 'mix' ? spec.weights[k] : 1;
+    for (let l = 0; l < n; l++) row[l] += w * dv[m.pos.get(res.idx[l])] / res.means[k];
+    wsum += w;
+  }
+  for (let l = 0; l < n; l++) row[l] /= wsum;
+  let out = row;
+  if (spec.transform === 'geo') {        // 近い k 本を経由した最短路
+    const nb = [...row.keys()].sort((a, b) => row[a] - row[b]).slice(0, spec.k); out = new Float64Array(n).fill(Infinity);
+    nb.forEach(i => { for (let j = 0; j < n; j++) out[j] = Math.min(out[j], row[i] + res.T[i][j]); });
+  }
+  if (spec.transform === 'rank') { const S_ = res.sorted; out = row.map(v => { let lo = 0, hi = S_.length; while (lo < hi) { const m = (lo + hi) >> 1; if (S_[m] < v) lo = m + 1; else hi = m; } return lo / S_.length; }); }
+  return out.map(v => v * res.normK);
+}
+// ---------- 差し込み (B): 村田の論文の配置 Y を固定して，1 点 y だけを当てはめる
+function nearestMean(Y, a, k) { const o = [...a.keys()].sort((p, q) => a[p] - a[q]).slice(0, k), m = Y[0].length, y = new Array(m).fill(0); o.forEach(i => { for (let c = 0; c < m; c++) y[c] += Y[i][c] / o.length; }); return y; }
+function placeOne(res, a) {
+  const Y = res.Y, n = Y.length, m = Y[0].length, f = res.fit;
+  if (f.method === 'cmds') {             // Gower の公式 (古典的 MDS の厳密な差し込み)
+    let ma = 0; for (let i = 0; i < n; i++) ma += a[i] ** 2 / n;
+    const b = new Float64Array(n); for (let i = 0; i < n; i++) b[i] = -.5 * (a[i] ** 2 - f.c.rm[i] - ma + f.c.gm);
+    return f.c.vecs.map((v, c) => { let s = 0; for (let i = 0; i < n; i++) s += v[i] * b[i]; return f.c.vals[c] > 1e-12 ? s / Math.sqrt(f.c.vals[c]) : 0; });
+  }
+  if (f.method === 'tsne') {             // 村田の論文だけで条件付き確率 p_j|r を作り，KL(p‖q) を y について減らす
+    const H = Math.log(Math.min(res.spec.perp, (n - 1) / 3)), p = new Float64Array(n); let lo = 1e-20, hi = 1e20, beta = 1;
+    for (let it = 0; it < 60; it++) { let s = 0, sh = 0; for (let j = 0; j < n; j++) { const v = Math.exp(-(a[j] ** 2) * beta); p[j] = v; s += v; sh += a[j] ** 2 * v; }
+      s = Math.max(s, 1e-300); const ent = Math.log(s) + beta * sh / s; if (Math.abs(ent - H) < 1e-5 || it === 59) { for (let j = 0; j < n; j++) p[j] /= s; break; }
+      if (ent > H) { lo = beta; beta = hi > 1e19 ? beta * 2 : (beta + hi) / 2; } else { hi = beta; beta = (beta + lo) / 2; } }
+    const kl = y => { let z = 0; const q = new Float64Array(n); for (let j = 0; j < n; j++) { let d2 = 0; for (let c = 0; c < m; c++) d2 += (y[c] - Y[j][c]) ** 2; q[j] = 1 / (1 + d2); z += q[j]; }
+      let L = 0; for (let j = 0; j < n; j++) if (p[j] > 1e-12) L += p[j] * Math.log(p[j] / (q[j] / z)); return { L, q, z }; };
+    let y = new Array(m).fill(0); for (let j = 0; j < n; j++) for (let c = 0; c < m; c++) y[c] += p[j] * Y[j][c];
+    let cur = kl(y), eta = 1;
+    for (let it = 0; it < 150; it++) {
+      const g = new Array(m).fill(0); for (let j = 0; j < n; j++) { const w = 4 * (p[j] - cur.q[j] / cur.z) * cur.q[j]; for (let c = 0; c < m; c++) g[c] += w * (y[c] - Y[j][c]); }
+      let ok = false; for (let t = 0; t < 12; t++) { const y2 = y.map((v, c) => v - eta * g[c]), nx = kl(y2); if (nx.L < cur.L) { y = y2; cur = nx; eta *= 1.3; ok = true; break; } eta /= 2; }
+      if (!ok) break;
+    }
+    return y;
+  }
+  // SMACOF・非計量・Sammon: 地図の距離の目標 t_i に近づける (1 点の Guttman 変換)
+  const t = new Float64Array(n);
+  for (let i = 0; i < n; i++) t[i] = f.method === 'nmds' ? f.iso(a[i]) : a[i] / f.kS;
+  const w = new Float64Array(n).map((_, i) => f.method === 'sammon' ? 1 / Math.max(a[i], 1e-6) : 1); let ws = 0; w.forEach(v => { ws += v; });
+  let y = nearestMean(Y, a, 3);
+  for (let it = 0; it < 200; it++) {
+    const z = new Array(m).fill(0);
+    for (let i = 0; i < n; i++) { let d = 0; for (let c = 0; c < m; c++) d += (y[c] - Y[i][c]) ** 2; d = Math.sqrt(d) || 1e-9; for (let c = 0; c < m; c++) z[c] += w[i] * (Y[i][c] + t[i] * (y[c] - Y[i][c]) / d); }
+    y = z.map(v => v / ws);
+  }
+  return y;
+}
+// 当てはめの後で，差し込みに要る量 (尺度，単調回帰) を用意し，関連文献を全部置く
+function placeRelated(res, method) {
+  const Y = res.Y, n = Y.length, d = mapDist(Y); let ab = 0, bb = 0;
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) { ab += res.D[i][j] * d[i][j]; bb += d[i][j] ** 2; }
+  res.fit.kS = ab / bb;
+  if (method === 'nmds') {
+    const P = []; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) P.push([res.D[i][j], d[i][j]]); P.sort((a, b) => a[0] - b[0]);
+    const xs = P.map(q => q[0]), dh = pava(P.map(q => q[1]));
+    res.fit.iso = v => { if (v <= xs[0]) return dh[0]; if (v >= xs[xs.length - 1]) return dh[dh.length - 1]; let lo = 0, hi = xs.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] <= v) lo = m; else hi = m; } return dh[lo]; };
+  }
+  res.RD = REL.map(r => relRow(res, r));
+  res.RY = REL.map((r, k) => {
+    if (res.RD[k]) return { y: placeOne(res, res.RD[k]), how: 'B' };
+    return placeByCiters(res, r, k);
+  });
+}
+// C: 引いている村田の論文の重心 (少しずらして重ならないように)
+function placeByCiters(res, r, k) {
+  const ls = r.citers.filter(g => res.pos.has(g)).map(g => res.pos.get(g)); if (!ls.length) return null;
+  const m = res.Y[0].length, y = new Array(m).fill(0); ls.forEach(l => { for (let c = 0; c < m; c++) y[c] += res.Y[l][c] / ls.length; });
+  let sp = 0; res.Y.forEach(q => { sp = Math.max(sp, Math.abs(q[0])); }); const th = k * 2.39996, rr = sp * .03;
+  y[0] += rr * Math.cos(th); y[1] += rr * Math.sin(th); return { y, how: 'C' };
+}
+function rankTransform(D) {
+  const n = D.length, P = []; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) P.push([i, j, D[i][j]]);
+  P.sort((a, b) => a[2] - b[2]); const out = Array.from({ length: n }, () => new Float64Array(n));
+  let k = 0; while (k < P.length) { let e = k; while (e + 1 < P.length && P[e + 1][2] === P[k][2]) e++; const r = (k + e) / 2 / P.length; for (let t = k; t <= e; t++) { const [i, j] = P[t]; out[i][j] = out[j][i] = r; } k = e + 1; }
+  return out;
+}
+function knnOf(E, k) { return E.map((row, i) => [...row.keys()].filter(j => j !== i).sort((a, b) => row[a] - row[b]).slice(0, k)); }
+function geodesic(E, k) {
+  const n = E.length, nb = knnOf(E, k), adj = Array.from({ length: n }, () => []);
+  nb.forEach((js, i) => js.forEach(j => { adj[i].push([j, E[i][j]]); adj[j].push([i, E[i][j]]); }));
+  const D = Array.from({ length: n }, () => new Float64Array(n).fill(Infinity));
+  for (let s = 0; s < n; s++) {
+    const dist = D[s]; dist[s] = 0; const heap = [[0, s]];
+    const push = x => { heap.push(x); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+    while (heap.length) { const [d, u] = pop(); if (d > dist[u]) continue; for (const [v, w] of adj[u]) if (d + w < dist[v]) { dist[v] = d + w; push([dist[v], v]); } }
+  }
+  let mx = 0; D.forEach(r => r.forEach(v => { if (isFinite(v) && v > mx) mx = v; }));
+  let broken = 0; D.forEach(r => { for (let j = 0; j < n; j++) if (!isFinite(r[j])) { r[j] = mx * 1.2; broken++; } });
+  return { D, broken: broken / 2 };
+}
+function normalizeDelta(D) { let s = 0, c = 0; D.forEach((r, i) => { for (let j = i + 1; j < r.length; j++) { s += r[j] * r[j]; c++; } }); const k = Math.sqrt(c / Math.max(s, 1e-12)); return D.map(r => r.map(v => v * k)); }
+
+// ============================================================ 当てはめ方 (mds.html から)
+function cmds(D, dim = 2) {
+  const n = D.length, B = Array.from({ length: n }, () => new Float64Array(n));
+  const rm = new Float64Array(n); let gm = 0;
+  for (let i = 0; i < n; i++) { for (let j = 0; j < n; j++) rm[i] += D[i][j] ** 2; rm[i] /= n; gm += rm[i]; }
+  gm /= n;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) B[i][j] = -.5 * (D[i][j] ** 2 - rm[i] - rm[j] + gm);
+  const vecs = [], vals = [];
+  for (let c = 0; c < dim; c++) {
+    let v = new Float64Array(n).map((_, i) => Math.sin(i * (c + 1) * 1.37) + .1);
+    for (let it = 0; it < 300; it++) {
+      const w = new Float64Array(n);
+      for (let i = 0; i < n; i++) { let s = 0; const Bi = B[i]; for (let j = 0; j < n; j++) s += Bi[j] * v[j]; w[i] = s; }
+      vecs.forEach(u => { let d = 0; for (let i = 0; i < n; i++) d += u[i] * w[i]; for (let i = 0; i < n; i++) w[i] -= u[i] * d; });
+      const nw = Math.hypot(...w) || 1; for (let i = 0; i < n; i++) v[i] = w[i] / nw;
+    }
+    let rq = 0; for (let i = 0; i < n; i++) { let s = 0; for (let j = 0; j < n; j++) s += B[i][j] * v[j]; rq += v[i] * s; }
+    vecs.push(v); vals.push(rq);
+  }
+  let tr = 0; for (let i = 0; i < n; i++) tr += B[i][i];
+  const Y = Array.from({ length: n }, (_, i) => vecs.map((v, c) => v[i] * Math.sqrt(Math.max(vals[c], 0))));
+  return { Y, explained: vals.reduce((a, b) => a + b, 0) / tr, vecs, vals, rm, gm };
+}
+function mapDist(Y) { const n = Y.length, m = Y[0].length, d = Array.from({ length: n }, () => new Float64Array(n));
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) { let s = 0; for (let k = 0; k < m; k++) s += (Y[i][k] - Y[j][k]) ** 2; d[i][j] = d[j][i] = Math.sqrt(s) || 1e-9; } return d; }
+function guttman(Y, T) {
+  const n = Y.length, m = Y[0].length, d = mapDist(Y), Z = Array.from({ length: n }, () => new Array(m).fill(0));
+  for (let i = 0; i < n; i++) { let bi = 0; for (let j = 0; j < n; j++) if (j !== i) { const b = -T[i][j] / d[i][j]; bi -= b; for (let k = 0; k < m; k++) Z[i][k] += b * Y[j][k]; } for (let k = 0; k < m; k++) Z[i][k] = (Z[i][k] + bi * Y[i][k]) / n; }
+  return Z;
+}
+function smacof(D, Y0, iters) { let Y = Y0.map(p => p.slice()); for (let t = 0; t < iters; t++) Y = guttman(Y, D); return Y; }
+function sammon(D, Y0, iters) {
+  const n = D.length; let Y = Y0.map(p => p.slice()); let c = 0; D.forEach((r, i) => { for (let j = i + 1; j < n; j++) c += r[j]; });
+  for (let t = 0; t < iters; t++) {
+    const d = mapDist(Y), Z = Y.map(p => p.slice());
+    for (let i = 0; i < n; i++) for (let k = 0; k < Y[0].length; k++) {
+      let g = 0, h = 0;
+      for (let j = 0; j < n; j++) { if (j === i) continue; const dl = Math.max(D[i][j], 1e-9), dd = d[i][j], diff = Y[i][k] - Y[j][k];
+        g += (dl - dd) / (dl * dd) * diff; h += 1 / (dl * dd) * ((dl - dd) - diff * diff / dd * (1 + (dl - dd) / dd)); }
+      g *= -2 / c; h *= -2 / c; Z[i][k] = Y[i][k] - .3 * g / Math.abs(h || 1e-9);
+    }
+    Y = Z;
+  }
+  return Y;
+}
+function pava(y) { const v = [], w = []; for (let i = 0; i < y.length; i++) { v.push(y[i]); w.push(1); while (v.length > 1 && v[v.length - 2] > v[v.length - 1]) { const a = v.pop(), wa = w.pop(); const b = v.pop(), wb = w.pop(); v.push((a * wa + b * wb) / (wa + wb)); w.push(wa + wb); } } const out = []; v.forEach((x, k) => { for (let m = 0; m < w[k]; m++) out.push(x); }); return out; }
+function nmds(D, Y0, iters) {
+  const n = D.length, P = []; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) P.push([i, j, D[i][j]]); P.sort((a, b) => a[2] - b[2]);
+  let Y = Y0.map(p => p.slice());
+  for (let t = 0; t < iters; t++) {
+    const d = mapDist(Y), dh = pava(P.map(p => d[p[0]][p[1]]));
+    let s = 0; dh.forEach(v => { s += v * v; }); const k = Math.sqrt(dh.length / s);
+    const T = Array.from({ length: n }, () => new Float64Array(n)); P.forEach((p, m) => { T[p[0]][p[1]] = T[p[1]][p[0]] = dh[m] * k; });
+    Y = guttman(Y, T);
+  }
+  return Y;
+}
+function tsne(D, Y0, perp, iters) {
+  const n = D.length, Pm = Array.from({ length: n }, () => new Float64Array(n)), H = Math.log(Math.min(perp, (n - 1) / 3));
+  for (let i = 0; i < n; i++) {
+    let lo = 1e-20, hi = 1e20, beta = 1;
+    for (let it = 0; it < 60; it++) {
+      let s = 0, sh = 0; for (let j = 0; j < n; j++) if (j !== i) { const v = Math.exp(-(D[i][j] ** 2) * beta); Pm[i][j] = v; s += v; sh += D[i][j] ** 2 * v; }
+      s = Math.max(s, 1e-300); const ent = Math.log(s) + beta * sh / s;
+      if (Math.abs(ent - H) < 1e-5 || it === 59) { for (let j = 0; j < n; j++) Pm[i][j] /= s; break; }
+      if (ent > H) { lo = beta; beta = hi > 1e19 ? beta * 2 : (beta + hi) / 2; } else { hi = beta; beta = (beta + lo) / 2; }
+    }
+  }
+  const P = Array.from({ length: n }, () => new Float64Array(n));
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) P[i][j] = Math.max((Pm[i][j] + Pm[j][i]) / (2 * n), 1e-12);
+  const m = Y0[0].length; let sc = 0; Y0.forEach(p => p.forEach(v => { sc = Math.max(sc, Math.abs(v)); }));
+  let Y = Y0.map(p => p.map(v => v / (sc || 1) * .5));
+  const V = Y.map(() => new Array(m).fill(0)), G = Y.map(() => new Array(m).fill(1));
+  for (let t = 0; t < iters; t++) {
+    const ex = t < 100 ? 12 : 1, mom = t < 100 ? .5 : .8, lr = 100;
+    const Q = Array.from({ length: n }, () => new Float64Array(n)); let Z = 0;
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) { let r = 0; for (let k = 0; k < m; k++) r += (Y[i][k] - Y[j][k]) ** 2; const q = 1 / (1 + r); Q[i][j] = Q[j][i] = q; Z += 2 * q; }
+    for (let i = 0; i < n; i++) {
+      const g = new Array(m).fill(0);
+      for (let j = 0; j < n; j++) { if (j === i) continue; const q = Q[i][j], w = (ex * P[i][j] - q / Z) * q; for (let k = 0; k < m; k++) g[k] += 4 * w * (Y[i][k] - Y[j][k]); }
+      for (let k = 0; k < m; k++) { G[i][k] = Math.sign(g[k]) !== Math.sign(V[i][k]) ? G[i][k] + .2 : Math.max(G[i][k] * .8, .01); V[i][k] = mom * V[i][k] - lr * G[i][k] * g[k]; }
+    }
+    Y = Y.map((p, i) => p.map((v, k) => v + V[i][k]));
+    const mu = new Array(m).fill(0); Y.forEach(p => p.forEach((v, k) => { mu[k] += v / n; })); Y = Y.map(p => p.map((v, k) => v - mu[k]));
+  }
+  return Y;
+}
+function evalMap(D, Y) {
+  const n = D.length, d = mapDist(Y); let a = 0, b = 0, ab = 0;
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) { ab += D[i][j] * d[i][j]; b += d[i][j] * d[i][j]; a += D[i][j] * D[i][j]; }
+  const k = ab / b; let s = 0; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) s += (D[i][j] - k * d[i][j]) ** 2;
+  const kk = 10, nbD = knnOf(D, kk), nbY = knnOf(d, kk); let hit = 0; nbD.forEach((js, i) => { const st = new Set(nbY[i]); js.forEach(j => { if (st.has(j)) hit++; }); });
+  const xs = [], ys = []; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) { xs.push(D[i][j]); ys.push(d[i][j]); }
+  return { stress: Math.sqrt(s / a), knn: hit / (n * kk), rho: spearman(xs, ys) };
+}
+function ranks(v) { const o = v.map((x, i) => i).sort((p, q) => v[p] - v[q]), r = new Float64Array(v.length); let k = 0; while (k < o.length) { let e = k; while (e + 1 < o.length && v[o[e + 1]] === v[o[k]]) e++; for (let t = k; t <= e; t++) r[o[t]] = (k + e) / 2; k = e + 1; } return r; }
+function spearman(xs, ys) { const rx = ranks(xs), ry = ranks(ys), n = xs.length; let mx = 0, my = 0; for (let i = 0; i < n; i++) { mx += rx[i]; my += ry[i]; } mx /= n; my /= n; let sxy = 0, sxx = 0, syy = 0; for (let i = 0; i < n; i++) { const a = rx[i] - mx, b = ry[i] - my; sxy += a * b; sxx += a * a; syy += b * b; } return sxy / Math.sqrt(sxx * syy); }
+// Procrustes (直交変換 (回転・鏡映)・尺度・平行移動) で B を A に合わせる．次元は 2 でも 3 でもよい
+// H = Bᶜᵀ Aᶜ = U S Vᵀ のとき，最適な直交変換は R = U Vᵀ (B の行ベクトルに右から掛ける)．SVD は Hᵀ H の固有分解 (Jacobi 法) から
+function jacobiEig(M) {
+  const m = M.length, A = M.map(r => r.slice()), V = A.map((_, i) => A.map((_, j) => +(i === j)));
+  for (let sweep = 0; sweep < 60; sweep++) {
+    let off = 0; for (let i = 0; i < m; i++) for (let j = i + 1; j < m; j++) off += A[i][j] ** 2; if (off < 1e-20) break;
+    for (let p = 0; p < m; p++) for (let q = p + 1; q < m; q++) {
+      if (Math.abs(A[p][q]) < 1e-300) continue;
+      const th = (A[q][q] - A[p][p]) / (2 * A[p][q]), t = Math.sign(th || 1) / (Math.abs(th) + Math.sqrt(th * th + 1)), c = 1 / Math.sqrt(t * t + 1), sn = t * c;
+      for (let k = 0; k < m; k++) { const akp = A[k][p], akq = A[k][q]; A[k][p] = c * akp - sn * akq; A[k][q] = sn * akp + c * akq; }
+      for (let k = 0; k < m; k++) { const apk = A[p][k], aqk = A[q][k]; A[p][k] = c * apk - sn * aqk; A[q][k] = sn * apk + c * aqk; }
+      for (let k = 0; k < m; k++) { const vkp = V[k][p], vkq = V[k][q]; V[k][p] = c * vkp - sn * vkq; V[k][q] = sn * vkp + c * vkq; }
+    }
+  }
+  return { vals: A.map((r, i) => r[i]), V };
+}
+function procrustes(YA, YB) {
+  const n = YA.length, m = YA[0] ? YA[0].length : 2; if (n < 3 || YB[0].length !== m) return p => p;
+  const ca = new Array(m).fill(0), cb = new Array(m).fill(0);
+  YA.forEach(p => p.forEach((v, k) => { ca[k] += v / n; })); YB.forEach(p => p.forEach((v, k) => { cb[k] += v / n; }));
+  const H = Array.from({ length: m }, () => new Array(m).fill(0)); let nb = 0;
+  for (let i = 0; i < n; i++) for (let a = 0; a < m; a++) { const b_ = YB[i][a] - cb[a]; nb += b_ * b_; for (let c = 0; c < m; c++) H[a][c] += b_ * (YA[i][c] - ca[c]); }
+  const HtH = H.map((_, i) => H.map((_, j) => H.reduce((s, r) => s + r[i] * r[j], 0)));
+  const { vals, V } = jacobiEig(HtH);
+  // U = H V S⁻¹ (S の小さい成分は Gram–Schmidt で補う)
+  const U = Array.from({ length: m }, () => new Array(m).fill(0)); let trS = 0;
+  for (let c = 0; c < m; c++) {
+    const sv = Math.sqrt(Math.max(vals[c], 0)); trS += sv;
+    const col = H.map(r => r.reduce((s, h, k) => s + h * V[k][c], 0));
+    for (let c2 = 0; c2 < c; c2++) { const d = col.reduce((s, x, k) => s + x * U[k][c2], 0); col.forEach((x, k) => { col[k] -= d * U[k][c2]; }); }
+    let nn = Math.hypot(...col); if (nn < 1e-12) { col.fill(0); col[c] = 1; nn = 1; }
+    col.forEach((x, k) => { U[k][c] = x / nn; });
+  }
+  const Rm = U.map((r, i) => V.map((_, j) => r.reduce((s, u, k) => s + u * V[j][k], 0)));   // R = U Vᵀ
+  const sc = trS / (nb || 1);
+  return p => { const b_ = p.map((v, k) => v - cb[k]); return ca.map((c0, j) => c0 + sc * b_.reduce((s, v, k) => s + v * Rm[k][j], 0)); };
+}
+
+// ============================================================ 状態
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const PAL = () => ['--c1', '--c2', '--c3', '--c4', '--c5', '--c6', '--c7', '--c8', '--c9'].map(css);
+const S = { colorBy: 'group', theme: 0, hidden: new Set(), yearOn: false, year: 2026, showCite: false, showNN: false, kNN: 3, showLab: false, hideOff: false,
+  sel: null, sel2: null, hover: null, hits: new Set(), layout: 1, relOn: false, relCited: true, relMin: 2, relContent: true, relTop: 30 };
+const METHODS = [['cmds', '古典的 MDS'], ['smacof', '計量的 MDS (SMACOF)'], ['nmds', '非計量 MDS'], ['sammon', 'Sammon'], ['tsne', 't-SNE']];
+const NOTE_M = {
+  cmds: '乖離度の二乗を二重中心化して内積の行列にし，上位 2 つの固有ベクトルで置く．反復なし．',
+  smacof: 'ストレス Σ(d − δ)² を SMACOF の反復で減らす．初期値は古典的 MDS．',
+  nmds: 'δ の大小の順序だけを保つ (Kruskal)．飽和した乖離度 (ほとんどが 1 に近い) でも広がる．',
+  sammon: '近い組の誤差を重く見る Σ(d − δ)²/δ．',
+  tsne: '近傍の確率の KL 情報量を減らす．近傍を保つが，塊の間の距離は読めない．',
+};
+const NOTE_T = { none: '乖離度をそのまま使う．', geo: '乖離度で k 近傍のグラフを作り，最短路の長さに置き換える (Isomap の考え)．', rank: '全ての組の順位 (0〜1) に置き換える．尺度の違う乖離度を混ぜるとき向き．' };
+function newPane(id, spec) { return { id, spec, res: null, Y: null, view: { s: 1, tx: 0, ty: 0 }, el: null }; }
+const PANES = [
+  newPane('A', { metric: 'concept', weights: {}, transform: 'none', k: 8, method: 'tsne', perp: 15, dim: 2 }),
+  newPane('B', { metric: 'biblio', weights: {}, transform: 'none', k: 8, method: 'smacof', perp: 15, dim: 2 }),
+];
+METRICS.forEach(m => { PANES.forEach(p => { p.spec.weights[m.key] = ['concept', 'lsa', 'coauthor'].includes(m.key) ? 1 : 0; }); });
+// URL で初期値: ?a=concept&am=tsne&b=biblio&bm=smacof&layout=2&color=year
+(function () {
+  const q = new URLSearchParams(location.search);
+  if (q.get('a') && (MET[q.get('a')] || ['mix', 'ca'].includes(q.get('a')))) PANES[0].spec.metric = q.get('a');
+  if (q.get('b') && (MET[q.get('b')] || ['mix', 'ca'].includes(q.get('b')))) PANES[1].spec.metric = q.get('b');
+  if (q.get('am')) PANES[0].spec.method = q.get('am'); if (q.get('bm')) PANES[1].spec.method = q.get('bm');
+  if (q.get('ad') === '3') PANES[0].spec.dim = 3; if (q.get('bd') === '3') PANES[1].spec.dim = 3;
+  if (q.get('layout') === '2') S.layout = 2; if (q.get('color')) S.colorBy = q.get('color');
+  if (q.get('rel') === '1') S.relOn = true;
+})();
+
+// ============================================================ 枠 (pane) を作る
+function paneHTML(p) {
+  const opts = METRICS.map(m => `<option value="${m.key}">${m.name} (${m.idx.length})</option>`).join('') + '<option value="mix">混合 (重みを選ぶ)</option>' + `<option value="ca">E: 対応分析 (論文 × 引用文献) (${CA ? CA.shape[0] : 0})</option>`;
+  return `<div class="bar"><b>${p.id}</b>
+    <span class="seg dim" title="地図の次元"><button data-d="2">2D</button><button data-d="3">3D</button></span>
+    <select class="met" title="乖離度">${opts}</select>
+    <select class="trf" title="変換"><option value="none">そのまま</option><option value="geo">測地 (k 近傍)</option><option value="rank">順位</option></select>
+    <select class="mth" title="当てはめ方">${METHODS.map(m => `<option value="${m[0]}">${m[1]}</option>`).join('')}</select>
+    <span class="kbox small">k <input type="number" class="k" min="3" max="30" style="width:44px"></span>
+    <span class="pbox small">perp <input type="number" class="perp" min="3" max="50" style="width:44px"></span>
+    <span class="rbox"><button class="spin" title="縦の軸のまわりに回し続ける">⟳ 回転</button>
+      <span class="seg"><button class="vw" data-v="top" title="第 1・第 2 軸の面を正面から">正面</button><button class="vw" data-v="side" title="第 1・第 3 軸の面">横</button><button class="vw" data-v="obl" title="斜めから">斜</button></span></span>
+    ${p.id === 'B' ? '<label class="small"><input type="checkbox" class="align" checked> A に向きを合わせる</label>' : ''}
+    </div>
+    <div class="wrap"><svg></svg><div class="busy">計算中…</div></div>
+    <div class="eval"></div>`;
+}
+function buildPanes() {
+  const host = $('#panes'); host.innerHTML = ''; host.className = S.layout === 2 ? 'two' : '';
+  PANES.slice(0, S.layout).forEach(p => {
+    const el = document.createElement('div'); el.className = 'pane'; el.innerHTML = paneHTML(p); host.appendChild(el); p.el = el;
+    const q = s => el.querySelector(s);
+    q('.met').value = p.spec.metric; q('.trf').value = p.spec.transform; q('.mth').value = p.spec.method; q('.k').value = p.spec.k; q('.perp').value = p.spec.perp;
+    const sync = () => { const ca = p.spec.metric === 'ca';
+      q('.trf').style.display = q('.mth').style.display = ca ? 'none' : '';
+      q('.kbox').style.display = !ca && p.spec.transform === 'geo' ? '' : 'none'; q('.pbox').style.display = !ca && p.spec.method === 'tsne' ? '' : 'none';
+      q('.rbox').style.display = p.spec.dim === 3 ? '' : 'none';
+      el.querySelectorAll('.dim button').forEach(b => b.classList.toggle('on', +b.dataset.d === p.spec.dim)); };
+    sync();
+    el.querySelectorAll('.dim button').forEach(b => b.onclick = () => { const d = +b.dataset.d; if (d === p.spec.dim) return; p.spec.dim = d; stopSpin(p); sync(); compute(p); });
+    q('.spin').onclick = () => { p.spin ? stopSpin(p) : startSpin(p); };
+    el.querySelectorAll('.vw').forEach(b => b.onclick = () => { stopSpin(p); setAngle(p, { top: [0, 0], side: [0, Math.PI / 2], obl: [.6, .45] }[b.dataset.v]); });
+    q('.met').onchange = e => { p.spec.metric = e.target.value; sync(); compute(p); };
+    q('.trf').onchange = e => { p.spec.transform = e.target.value; sync(); compute(p); };
+    q('.mth').onchange = e => { p.spec.method = e.target.value; sync(); compute(p); };
+    q('.k').onchange = e => { p.spec.k = +e.target.value; compute(p); };
+    q('.perp').onchange = e => { p.spec.perp = +e.target.value; compute(p); };
+    if (q('.align')) q('.align').onchange = () => { p.alignF = null; render(); };
+    setupZoom(p);
+  });
+  PANES.slice(0, S.layout).forEach(p => compute(p));
+}
+// 3 次元の視点: yaw (縦の軸のまわり) と pitch (横の軸のまわり)．B が A に向きを合わせていて両方 3D なら視点も連動する
+function linked(p) { return S.layout === 2 && PANES[0].spec.dim === 3 && PANES[1].spec.dim === 3 && PANES[1].el && PANES[1].el.querySelector('.align')?.checked; }
+function angleOf(p) { const src = linked(p) ? PANES[0] : p; return src.ang || (src.ang = [.6, .45]); }
+function setAngle(p, a) { (linked(p) ? PANES : [p]).forEach(q => { q.ang = a.slice(); }); render(); }
+function startSpin(p) { stopSpin(p); p.spin = setInterval(() => { const a = angleOf(p); setAngle(p, [a[0] + .012, a[1]]); }, 30); p.el.querySelector('.spin').classList.add('on'); }
+function stopSpin(p) { if (p.spin) clearInterval(p.spin); p.spin = null; p.el?.querySelector('.spin')?.classList.remove('on'); }
+function setupZoom(p) {
+  const svg = p.el.querySelector('svg'); let drag = null;
+  svg.addEventListener('wheel', e => { e.preventDefault(); const r = svg.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, f = Math.exp(-e.deltaY * .0015);
+    p.view.tx = mx - (mx - p.view.tx) * f; p.view.ty = my - (my - p.view.ty) * f; p.view.s *= f; renderPane(p); }, { passive: false });
+  // 3D: ドラッグで回す，Shift＋ドラッグで動かす．2D: ドラッグで動かす
+  svg.addEventListener('mousedown', e => { if (e.target.dataset.i !== undefined) return; const a = angleOf(p);
+    drag = { x: e.clientX, y: e.clientY, tx: p.view.tx, ty: p.view.ty, rot: p.spec.dim === 3 && !e.shiftKey, a0: a.slice() }; if (drag.rot) stopSpin(p); svg.classList.add('drag'); });
+  window.addEventListener('mousemove', e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (drag.rot) setAngle(p, [drag.a0[0] + dx * .008, Math.max(-Math.PI / 2, Math.min(Math.PI / 2, drag.a0[1] + dy * .008))]);
+    else { p.view.tx = drag.tx + dx; p.view.ty = drag.ty + dy; renderPane(p); } });
+  window.addEventListener('mouseup', () => { drag = null; svg.classList.remove('drag'); });
+  svg.addEventListener('dblclick', () => { p.view = { s: 1, tx: 0, ty: 0 }; if (p.spec.dim === 3) setAngle(p, [.6, .45]); else renderPane(p); });
+}
+function compute(p) {
+  const busy = p.el.querySelector('.busy'); busy.classList.add('show');
+  setTimeout(() => {
+    const t0 = performance.now(); let res;
+    if (p.spec.metric === 'ca') {
+      // E: 対応分析．行 (村田の論文) と列 (引かれている関連文献) の主座標をそのまま使う
+      const dm = p.spec.dim; res = { idx: CA.rows.slice(), keys: [], note: '', ca: true, spec: JSON.parse(JSON.stringify(p.spec)) };
+      res.Y = CA.F.map(r => r.slice(0, dm)); res.raw = mapDist(CA.F); res.D = res.raw;
+      res.RY = REL.map(() => null); CA.cols.forEach((k, b) => { res.RY[k] = { y: CA.G[b].slice(0, dm), how: 'E' }; });
+      res.RD = REL.map(() => null);
+      res.explained = CA.inertia.slice(0, dm).reduce((x, y) => x + y, 0);
+    } else {
+      res = buildDelta(p.spec); const D = res.D;
+      const c = cmds(D, p.spec.dim); let Y = c.Y;
+      if (p.spec.method === 'smacof') Y = smacof(D, Y, 150);
+      if (p.spec.method === 'nmds') Y = nmds(D, Y, 120);
+      if (p.spec.method === 'sammon') Y = sammon(D, Y, 150);
+      if (p.spec.method === 'tsne') Y = tsne(D, Y, p.spec.perp, p.spec.dim === 3 ? 700 : 600);
+      res.Y = Y; res.ev = evalMap(D, Y); res.explained = c.explained; res.fit = { method: p.spec.method, c };
+    }
+    res.pos = new Map(res.idx.map((g, l) => [g, l]));
+    res.nn = knnOf(res.D, 10);
+    if (!res.ca) placeRelated(res, p.spec.method);
+    res.ms = performance.now() - t0;
+    p.res = res; p.alignF = null; p.view = { s: 1, tx: 0, ty: 0 };
+    busy.classList.remove('show');
+    if (p.id === 'A' && PANES[1].res) PANES[1].alignF = null;
+    render(); showDetail();
+  }, 20);
+}
+// 描く座標: B は A に向きを合わせる (村田の論文の共通部分で Procrustes．関連文献にも同じ変換)
+function coordsOf(p) {
+  let f = null;
+  if (p.id === 'B' && S.layout === 2 && PANES[0].res && p.el.querySelector('.align')?.checked) {
+    if (!p.alignF) {
+      const A = PANES[0].res, B = p.res, common = B.idx.filter(g => A.pos.has(g));
+      p.alignF = procrustes(common.map(g => A.Y[A.pos.get(g)]), common.map(g => B.Y[B.pos.get(g)]));
+    }
+    f = p.alignF;
+  }
+  const Y = f ? p.res.Y.map(f) : p.res.Y;
+  const RY = p.res.RY.map(o => o && { y: f ? f(o.y) : o.y, how: o.how });
+  return { Y, RY };
+}
+function relVisible(r) { return S.relOn && ((S.relCited && r.citers.length >= S.relMin) || (S.relContent && r.crank <= S.relTop)); }
+
+// ============================================================ 色
+function colorOf(d) {
+  const P = PAL();
+  switch (S.colorBy) {
+    case 'group': return d.group < 0 ? css('--edge') : P[d.group];
+    case 'topic': return d.topic < 0 ? css('--edge') : topicColor(d.topic);
+    case 'year': return seq((d.year - 1992) / (2026 - 1992));
+    case 'source': return P[{ library: 0, scopus: 1, docs: 2, related: 3 }[d.source]];
+    case 'coauthor': return d.co >= 7 ? (d.co === 7 ? P[7] : P[8]) : P[d.co];
+    case 'theme': return seq(Math.min(1, d.themes[S.theme] / .5));
+  }
+}
+function topicColor(t) { const P = PAL(); const ext = ['#3e6b2e', '#5b5fc7', '#c23b3b']; return t < 9 ? P[t] : ext[(t - 9) % 3]; }
+function seq(x) { const a = hex(css('--seq-lo')), b = hex(css('--seq-hi')); return `rgb(${a.map((v, k) => Math.round(v + (b[k] - v) * x)).join(',')})`; }
+function hex(h) { h = h.replace('#', ''); return [0, 2, 4].map(k => parseInt(h.substr(k, 2), 16)); }
+function catOf(d) { switch (S.colorBy) { case 'group': return d.group; case 'topic': return d.topic; case 'source': return d.source; case 'coauthor': return d.co; default: return null; } }
+function isOff(d) { if (S.yearOn && d.year > S.year) return true; const c = catOf(d); return c !== null && S.hidden.has(String(c)); }
+function legend() {
+  const L = $('#legend'); let items = [];
+  const cnt = f => DOCS.filter(f).length;
+  if (S.colorBy === 'group') { items = R.groups.map((g, k) => [k, g.name, PAL()[k], cnt(d => d.group === k)]); items.push([-1, '(概念なし)', css('--edge'), cnt(d => d.group < 0)]); }
+  if (S.colorBy === 'topic') { const tp = MET.topic.topics; items = tp.map((t, k) => [k, t.label, topicColor(k), cnt(d => d.topic === k)]); items.push([-1, '(全文なし)', css('--edge'), cnt(d => d.topic < 0)]); }
+  if (S.colorBy === 'source') items = [['library', 'library.bib', PAL()[0], cnt(d => d.source === 'library')], ['scopus', 'Scopus だけ', PAL()[1], cnt(d => d.source === 'scopus')], ['docs', '著書・講義ノート', PAL()[2], cnt(d => d.source === 'docs')]];
+  if (S.colorBy === 'coauthor') { items = TOPCO.map((a, k) => [k, a, PAL()[k], cnt(d => d.co === k)]); items.push([7, '単著', PAL()[7], cnt(d => d.co === 7)], [8, 'その他', PAL()[8], cnt(d => d.co === 8)]); }
+  if (S.colorBy === 'year') { L.innerHTML = `<div style="cursor:default"><span class="small">1992</span><span style="flex:1;height:8px;border-radius:4px;background:linear-gradient(90deg,${seq(0)},${seq(1)})"></span><span class="small">2026</span></div>`; return; }
+  if (S.colorBy === 'theme') { L.innerHTML = `<div style="cursor:default"><span class="small">0</span><span style="flex:1;height:8px;border-radius:4px;background:linear-gradient(90deg,${seq(0)},${seq(1)})"></span><span class="small">≥ 50%</span></div><div class="small" style="cursor:default">概念辞書の重みのうち，その主題が占める割合</div>`; return; }
+  L.innerHTML = items.map(([k, name, col, c]) => `<div data-k="${k}" class="${S.hidden.has(String(k)) ? 'off' : ''}" title="クリックで表示・非表示，ダブルクリックでそれだけ"><i style="background:${col}"></i><span>${name}</span><span class="cnt">${c}</span></div>`).join('');
+  L.querySelectorAll('div[data-k]').forEach(el => {
+    el.onclick = () => { const k = el.dataset.k; S.hidden.has(k) ? S.hidden.delete(k) : S.hidden.add(k); legend(); render(); };
+    el.ondblclick = () => { const k = el.dataset.k; S.hidden = new Set(items.map(x => String(x[0])).filter(x => x !== k)); legend(); render(); };
+  });
+}
+
+// ============================================================ 描く
+function render() { PANES.slice(0, S.layout).forEach(p => p.res && renderPane(p)); }
+function renderPane(p) {
+  const svg = p.el.querySelector('svg'), W = svg.clientWidth, H = svg.clientHeight; if (!W || !H) return;
+  const co = coordsOf(p), Y0 = co.Y, res = p.res, is3 = Y0[0].length === 3, v = p.view, pad = 30, out = [];
+  const relVis = REL.map((r, k) => co.RY[k] && relVisible(r) ? co.RY[k] : null);
+  // 尺度を決める点: 村田の論文 (対応分析では見えている関連文献も)
+  const frame = res.ca ? Y0.concat(relVis.filter(Boolean).map(o => o.y)) : Y0;
+  // 画面の座標 (sx, sy) と奥行き (dz: -1 が奥，1 が手前) を作る
+  let proj, axes = null;
+  if (!is3) {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity; frame.forEach(([x, y]) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); });
+    const sc = Math.min((W - 2 * pad) / (x1 - x0 || 1), (H - 2 * pad) / (y1 - y0 || 1)), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    proj = q => [(W / 2 + (q[0] - cx) * sc) * v.s + v.tx, (H / 2 - (q[1] - cy) * sc) * v.s + v.ty, 0];
+  } else {
+    // 重心を中心に，原点からの距離の 95% 点で尺度を決める (回しても大きさが変わらない)．正射影
+    const n = frame.length, c = [0, 0, 0]; frame.forEach(q => q.forEach((x, k) => { c[k] += x / n; }));
+    const rads = frame.map(q => Math.hypot(q[0] - c[0], q[1] - c[1], q[2] - c[2])).sort((x, y) => x - y); const rad = rads[Math.floor(.95 * (n - 1))] * 1.05 || 1;
+    const [yaw, pit] = angleOf(p), cy_ = Math.cos(yaw), sy_ = Math.sin(yaw), cp = Math.cos(pit), sp = Math.sin(pit);
+    const sc = (Math.min(W, H) / 2 - pad) / rad;
+    const rot = q => { const x = q[0] - c[0], y = q[1] - c[1], z = q[2] - c[2]; const x1 = x * cy_ + z * sy_, z1 = -x * sy_ + z * cy_; return [x1, y * cp - z1 * sp, y * sp + z1 * cp]; };
+    const scr = r => [(W / 2 + r[0] * sc) * v.s + v.tx, (H / 2 - r[1] * sc) * v.s + v.ty, Math.max(-1, Math.min(1, r[2] / rad))];
+    proj = q => scr(rot(q));
+    axes = [0, 1, 2].map(k => { const e = c.slice(); e[k] += rad * .55; return [scr(rot(c)), scr(rot(e))]; });
+  }
+  const PJ = Y0.map(proj), PR = relVis.map(o => o && proj(o.y));
+  const X = l => PJ[l][0], Yy = l => PJ[l][1];
+  if (axes) axes.forEach(([o, e], k) => { out.push(`<line x1="${o[0]}" y1="${o[1]}" x2="${e[0]}" y2="${e[1]}" stroke="${css('--edge')}" stroke-width="1" stroke-dasharray="3 3"/><text class="lab" x="${e[0] + 3}" y="${e[1] + 3}">軸 ${k + 1}</text>`); });
+  const selSet = new Set([S.sel, S.sel2].filter(x => x !== null));
+  if (S.showCite) R.cites.forEach(([a, b]) => { if (res.pos.has(a) && res.pos.has(b)) { const la = res.pos.get(a), lb = res.pos.get(b), hl = selSet.has(a) || selSet.has(b);
+    out.push(`<line x1="${X(la)}" y1="${Yy(la)}" x2="${X(lb)}" y2="${Yy(lb)}" stroke="${hl ? css('--nb') : css('--cite')}" stroke-width="${hl ? 1.6 : .8}" opacity="${hl ? .9 : .6}" marker-end="url(#ar${p.id})"/>`); } });
+  // 関連文献の引用の線 (C): 関連文献と，それを引いている村田の論文を結ぶ．選んだものは常に
+  REL.forEach((r, k) => { if (!PR[k]) return; const hl = selSet.has(r.i) || r.citers.some(g => selSet.has(g)); if (!S.showCite && !hl) return;
+    r.citers.forEach(g => { if (!res.pos.has(g)) return; const l = res.pos.get(g); if (!hl && selSet.size && !selSet.has(g)) return;
+      out.push(`<line x1="${PR[k][0]}" y1="${PR[k][1]}" x2="${X(l)}" y2="${Yy(l)}" stroke="${hl ? css('--nb') : css('--cite')}" stroke-width="${hl ? 1.3 : .7}" stroke-dasharray="4 3" opacity="${hl ? .85 : .45}"/>`); }); });
+  if (S.showNN) res.nn.forEach((js, l) => js.slice(0, S.kNN).forEach(m => { out.push(`<line x1="${X(l)}" y1="${Yy(l)}" x2="${X(m)}" y2="${Yy(m)}" stroke="${css('--edge')}" stroke-width=".7"/>`); }));
+  // 選んだ点の乖離度の近傍 (関連文献なら差し込みに使った乖離度で近い村田の論文)
+  [S.sel, S.sel2].forEach(s => { if (s === null) return;
+    if (res.pos.has(s)) { const l = res.pos.get(s); res.nn[l].slice(0, 8).forEach(m => out.push(`<line x1="${X(l)}" y1="${Yy(l)}" x2="${X(m)}" y2="${Yy(m)}" stroke="${css('--nb')}" stroke-width="1.2" opacity=".75"/>`)); }
+    const k = s - N; if (k >= 0 && PR[k] && res.RD[k]) { const a = res.RD[k]; [...a.keys()].sort((x, y) => a[x] - a[y]).slice(0, 5).forEach(m => out.push(`<line x1="${PR[k][0]}" y1="${PR[k][1]}" x2="${X(m)}" y2="${Yy(m)}" stroke="${css('--nb')}" stroke-width="1.2" opacity=".75"/>`)); } });
+  // 点: 関連文献 (◇) を下に，村田の論文 (●) を上に．奥のものから
+  const items = [];
+  REL.forEach((r, k) => { if (PR[k]) items.push([1, k, PR[k]]); });
+  res.idx.forEach((g, l) => items.push([0, l, PJ[l]]));
+  const offOf = it => it[0] ? isOff(REL[it[1]]) : isOff(DOCS[res.idx[it[1]]]);
+  items.sort((a, b) => (offOf(b) - offOf(a)) || (b[0] - a[0]) || (a[2][2] - b[2][2]));
+  items.forEach(it => {
+    const d = it[0] ? REL[it[1]] : DOCS[res.idx[it[1]]], off = offOf(it); if (off && S.hideOff) return;
+    const [x, y, dz] = it[2], dk = is3 ? .75 + .25 * (dz + 1) : 1, op = off ? .45 : (is3 ? .55 + .45 * (dz + 1) / 2 : 1);
+    const col = off ? css('--edge') : colorOf(d), ring = selSet.has(d.i) || S.hover === d.i || S.hits.has(d.i);
+    if (d.rel) {
+      const sz = (4 + 1.4 * Math.sqrt(d.citers.length)) * dk * (ring ? 1.25 : 1);
+      out.push(`<path data-i="${d.i}" d="M${x},${y - sz}L${x + sz},${y}L${x},${y + sz}L${x - sz},${y}Z" fill="${col}" fill-opacity=".35" stroke="${ring ? css('--ring') : col}" stroke-width="${ring ? 2 : 1.2}" opacity="${op}"/>`);
+      if ((S.showLab && !off) || ring) out.push(`<text class="lab" x="${x + sz + 3}" y="${y + 3}" style="font-style:italic">${esc(d.short)}</text>`);
+      return;
+    }
+    const big = (d.source !== 'scopus' ? 5.5 : 4) * dk;
+    const sw = ring ? 2.2 : (d.source === 'scopus' ? 1.6 : .8), st = ring ? css('--ring') : (d.source === 'scopus' ? col : css('--surface-0'));
+    const fill = d.source === 'scopus' ? css('--surface-1') : col;
+    out.push(d.source === 'docs'
+      ? `<rect data-i="${d.i}" x="${x - 6 * dk}" y="${y - 6 * dk}" width="${12 * dk}" height="${12 * dk}" fill="${fill}" stroke="${st}" stroke-width="${sw}" opacity="${op}"/>`
+      : `<circle data-i="${d.i}" cx="${x}" cy="${y}" r="${ring ? big + 1.5 : big}" fill="${fill}" stroke="${st}" stroke-width="${sw}" opacity="${op}"/>`);
+    if ((S.showLab && !off) || ring) out.push(`<text class="lab" x="${x + 7}" y="${y + 3}">${esc(d.short)}</text>`);
+  });
+  svg.innerHTML = `<defs><marker id="ar${p.id}" viewBox="0 0 6 6" refX="9" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0L6,3L0,6z" fill="${css('--cite')}"/></marker></defs>` + out.join('');
+  svg.querySelectorAll('[data-i]').forEach(el => {
+    const i = +el.dataset.i;
+    el.onmouseenter = e => { S.hover = i; tip(e, ALL[i]); hoverOthers(p); };
+    el.onmousemove = e => tip(e, ALL[i]);
+    el.onmouseleave = () => { S.hover = null; $('#tip').style.display = 'none'; hoverOthers(p); };
+    el.onclick = e => { if (e.shiftKey) S.sel2 = S.sel2 === i ? null : i; else { S.sel = i; S.sel2 = null; } showDetail(); render(); };
+    el.style.cursor = 'pointer';
+  });
+  const nB = relVis.filter(o => o && o.how === 'B').length, nC = relVis.filter(o => o && o.how === 'C').length, nE = relVis.filter(o => o && o.how === 'E').length;
+  const relNote = S.relOn ? (res.ca ? ` · 関連文献 ${nE} 件 (列の主座標)` : ` · 関連文献 ${nB + nC} 件 (B 差し込み ${nB} / C 引用の重心 ${nC})`) : '';
+  if (res.ca) {
+    p.el.querySelector('.eval').innerHTML = `${res.idx.length} 本 × ${CA.shape[1]} 件 · ${is3 ? '3 次元' : '2 次元'} · 対応分析 (論文 × 引用文献) · 寄与率 ${CA.inertia.slice(0, Y0[0].length).map(x => (x * 100).toFixed(1) + '%').join(' + ')}${relNote}`;
+    return;
+  }
+  const ev = res.ev, mnote = p.spec.metric === 'mix' ? `混合: ${res.keys.map(k => MET[k].name.split(' ')[0] + '×' + p.spec.weights[k]).join(' + ')}` : MET[p.spec.metric].name;
+  p.el.querySelector('.eval').innerHTML = `${res.idx.length} 件 · ${is3 ? '3 次元' : '2 次元'} · ${mnote} · ストレス ${ev.stress.toFixed(3)} · 10 近傍の保存 ${(ev.knn * 100).toFixed(0)}% · 順位相関 ${ev.rho.toFixed(3)}` +
+    (p.spec.method === 'cmds' ? ` · 上位 ${Y0[0].length} 成分 ${(res.explained * 100).toFixed(0)}%` : '') + (res.note ? ` · ${res.note}` : '') + relNote + ` <span class="small">(${(res.ms / 1000).toFixed(1)} 秒)</span>`;
+}
+function hoverOthers(src) { PANES.slice(0, S.layout).forEach(p => { if (p !== src && p.res) renderPane(p); }); }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function tip(e, d) {
+  const t = $('#tip'); t.style.display = 'block';
+  t.innerHTML = (d.rel ? `<span class="small" style="color:var(--accent)">◇ 関連文献${d.citers.length ? ' · 村田の論文 ' + d.citers.length + ' 本が引く' : ''}</span><br>` : '') + `<b>${esc(d.title)}</b><br><span class="small">${esc(d.authors.slice(0, 4).join('; '))}${d.authors.length > 4 ? ' ほか' : ''} · ${d.year} · ${esc(d.venue).slice(0, 60)}</span>` +
+    (d.concepts.length ? `<br><span class="small">${esc(d.concepts.slice(0, 4).join(', '))}</span>` : '');
+  const x = Math.min(e.clientX + 14, innerWidth - 370), y = Math.min(e.clientY + 12, innerHeight - 90); t.style.left = x + 'px'; t.style.top = y + 'px';
+}
+
+// ============================================================ 詳細
+function neighborsIn(p, i, k) {
+  if (!p.res || !p.res.pos.has(i)) return null; const l = p.res.pos.get(i), D = p.res.raw;
+  return [...D[l].keys()].filter(j => j !== l).sort((a, b) => D[l][a] - D[l][b]).slice(0, k).map(j => [p.res.idx[j], D[l][j]]);
+}
+function showDetail() {
+  const el = $('#detail'), i = S.sel;
+  if (i === null) { el.innerHTML = '<div class="small">点をクリックすると，題・要旨・概念・乖離度で近い文献を出します．Shift＋クリックでもう 1 点を選ぶと，2 点の間の乖離度を尺度ごとに並べます．</div>' + overview(); return; }
+  if (i >= N) { relDetail(el, ALL[i]); return; }
+  const d = DOCS[i], gname = d.group >= 0 ? R.groups[d.group].name : '';
+  const link = d.doi ? `<a href="https://doi.org/${esc(d.doi)}" target="_blank">doi:${esc(d.doi)}</a>` : '';
+  const th = d.themes.map((v, k) => [k, v]).filter(x => x[1] > .04).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  let h = `<div class="title">${esc(d.title)}</div>
+    <div class="meta">${esc(d.authors.join('; '))}<br>${d.year} · ${esc(d.venue)} ${link}<br>
+    <span class="small">${{ library: 'library.bib', scopus: 'Scopus だけ (要旨なし)', docs: '著書・講義ノート (docs/)' }[d.source]} · ${esc(d.id)}${d.cited_by != null ? ' · 被引用 ' + d.cited_by + ' (Scopus)' : ''}${d.nref ? ' · 照合した参考文献 ' + d.nref : ''}</span></div>`;
+  if (d.abstract) h += `<div class="abs">${esc(d.abstract)}${d.abstract_from === 'pdf' ? ' <span class="small">(PDF から)</span>' : ''}</div>`;
+  if (d.concepts.length) h += `<h2 style="font-size:12px;margin:10px 0 3px">概念 (辞書で多いもの)</h2><div class="tags">${d.concepts.map(c => `<span>${esc(c)}</span>`).join('')}</div>`;
+  if (th.length) h += `<h2 style="font-size:12px;margin:10px 0 3px">主題の割合 ${gname ? '— 大分類: ' + esc(gname) : ''}</h2><div class="bars">${th.map(([k, v]) => `<div><span>${esc(R.themes[k].name)}</span><span class="b" style="width:${v * 100}%"></span><span>${Math.round(v * 100)}%</span></div>`).join('')}</div>`;
+  if (d.topic >= 0) h += `<div class="small" style="margin-top:4px">NMF の話題: ${esc(MET.topic.topics[d.topic].label)}</div>`;
+  const cited = R.cites.filter(c => c[0] === i).map(c => c[1]), citing = R.cites.filter(c => c[1] === i).map(c => c[0]);
+  const li = (g, extra, cls) => `<li data-i="${g}" class="${cls || ''}">${esc(ALL[g].short)} — ${esc(ALL[g].title.slice(0, 70))} <span class="d">${extra || ''}</span></li>`;
+  const panes = PANES.slice(0, S.layout);
+  const nbs = panes.map(p => neighborsIn(p, i, 8));
+  const sets = nbs.map(nb => new Set((nb || []).map(x => x[0])));
+  panes.forEach((p, k) => {
+    const nb = nbs[k]; const name = p.spec.metric === 'mix' ? '混合' : MET[p.spec.metric].name;
+    h += `<h2 style="font-size:12px;margin:10px 0 3px">${p.id}: ${esc(name)} で近い 8 件</h2>`;
+    h += nb ? `<ol>${nb.map(([g, v]) => li(g, v.toFixed(3), S.layout === 2 && sets[1 - k].has(g) ? 'both' : '')).join('')}</ol>` : '<div class="small">この乖離度には入っていない (データなし)</div>';
+  });
+  if (S.layout === 2) h += '<div class="small">太字は A と B の両方で近い 8 件に入るもの．</div>';
+  if (cited.length) h += `<h2 style="font-size:12px;margin:10px 0 3px">引いている本人の論文 (${cited.length})</h2><ol>${cited.map(g => li(g)).join('')}</ol>`;
+  if (citing.length) h += `<h2 style="font-size:12px;margin:10px 0 3px">引かれている本人の論文 (${citing.length})</h2><ol>${citing.map(g => li(g)).join('')}</ol>`;
+  const relc = REL.filter(r => r.citers.includes(i)).sort((a, b) => b.citers.length - a.citers.length);
+  if (relc.length) h += `<h2 style="font-size:12px;margin:10px 0 3px">引いている関連文献 (${relc.length})</h2><ol>${relc.map(r => li(r.i, '村田の論文 ' + r.citers.length + ' 本が引く')).join('')}</ol>` + (S.relOn ? '' : '<div class="small">左の「関連文献」で地図に出せる．</div>');
+  if (S.sel2 !== null && S.sel2 < N) {
+    const j = S.sel2;
+    h += `<h2 style="font-size:12px;margin:12px 0 3px">比べる先: ${esc(DOCS[j].short)} — ${esc(DOCS[j].title.slice(0, 60))}</h2><table class="cmp"><tr><th>乖離度</th><th>値</th><th>全体での順位</th></tr>`;
+    METRICS.forEach(m => { if (m.pos.has(i) && m.pos.has(j)) { const v = mval(m, m.pos.get(i), m.pos.get(j)); const pct = m.D.filter(x => x < v).length / m.D.length;
+      h += `<tr><td style="text-align:left">${esc(m.name)}</td><td>${v.toFixed(3)}</td><td>下から ${(pct * 100).toFixed(0)}%</td></tr>`; } else h += `<tr><td style="text-align:left">${esc(m.name)}</td><td colspan="2" class="small">片方がデータなし</td></tr>`; });
+    h += '</table><div class="small">「下から 10%」なら，全ての組のうち近い方の 1 割に入る．</div>';
+  }
+  el.innerHTML = h;
+  el.querySelectorAll('li[data-i]').forEach(x => x.onclick = () => { S.sel = +x.dataset.i; S.sel2 = null; showDetail(); render(); });
+}
+function relDetail(el, d) {
+  const link = d.doi ? `<a href="https://doi.org/${esc(d.doi)}" target="_blank">doi:${esc(d.doi)}</a>` : '';
+  const li = (g, extra) => `<li data-i="${g}">${esc(ALL[g].short)} — ${esc(ALL[g].title.slice(0, 70))} <span class="d">${extra || ''}</span></li>`;
+  const why = [d.citers.length >= 2 ? `村田の論文 ${d.citers.length} 本に引かれている` : (d.citers.length ? '村田の論文 1 本に引かれている' : ''), d.crank <= 100 ? `題・要旨の近さで ${d.crank} 位` : ''].filter(Boolean).join('，');
+  let h = `<div class="small" style="color:var(--accent)">◇ 関連文献 (村田の著作ではない)</div><div class="title">${esc(d.title)}</div>
+    <div class="meta">${esc(d.authors.slice(0, 8).join('; '))}${d.authors.length > 8 ? ' ほか' : ''}<br>${d.year || ''} · ${esc(d.venue)} ${link}<br>
+    <span class="small">library.bib · ${esc(d.id)} · ${esc(d.type)}${d.fulltext ? ' · 全文あり' : ''}${d.nref ? ' · 照合した参考文献 ' + d.nref : ''}</span><br><span class="small">選ばれた理由: ${why}</span></div>`;
+  if (d.abstract) h += `<div class="abs">${esc(d.abstract)}</div>`;
+  if (d.concepts.length) h += `<h2 style="font-size:12px;margin:10px 0 3px">概念 (辞書で多いもの)</h2><div class="tags">${d.concepts.map(c => `<span>${esc(c)}</span>`).join('')}</div>`;
+  PANES.slice(0, S.layout).forEach(p => {
+    if (!p.res) return; const k = d.i - N, o = p.res.RY[k], a = p.res.RD && p.res.RD[k];
+    const how = !o ? 'この地図には置けない (データも引用もない)' : { B: 'B: 乖離度から差し込み', C: 'C: 引いている論文の重心 (この尺度にデータなし)', E: 'E: 対応分析の列の主座標' }[o.how];
+    h += `<h2 style="font-size:12px;margin:10px 0 3px">${p.id}: ${esc(how)}</h2>`;
+    if (a) { const nb = [...a.keys()].sort((x, y) => a[x] - a[y]).slice(0, 6); h += `<div class="small">差し込みに使った乖離度で近い村田の論文</div><ol>${nb.map(l => li(p.res.idx[l], a[l].toFixed(3))).join('')}</ol>`; }
+  });
+  if (d.citers.length) h += `<h2 style="font-size:12px;margin:10px 0 3px">引いている村田の論文 (${d.citers.length})</h2><ol>${d.citers.map(g => li(g)).join('')}</ol>`;
+  else h += `<h2 style="font-size:12px;margin:10px 0 3px">題・要旨が近い村田の論文</h2><ol>${d.nearest.map(g => li(g)).join('')}</ol>`;
+  el.innerHTML = h;
+  el.querySelectorAll('li[data-i]').forEach(x => x.onclick = () => { S.sel = +x.dataset.i; S.sel2 = null; showDetail(); render(); });
+}
+function overview() {
+  let h = '<h2 style="font-size:12px;margin:12px 0 4px">乖離度の候補</h2>';
+  METRICS.forEach(m => { h += `<div class="desc"><b>${esc(m.name)}</b> <span class="small">[${esc(m.group)}] ${m.idx.length} 件</span><br>${esc(m.desc)}</div>`; });
+  h += `<h2 style="font-size:12px;margin:12px 0 4px">関連文献 (◇)</h2><div class="small">村田の著作以外の library.bib の項目から ${REL.length} 件 (村田の論文 ${R.rel_rule.min_cited} 本以上に引かれているもの ${REL.filter(r => r.citers.length >= R.rel_rule.min_cited).length} 件と，題・要旨の TF-IDF で村田の論文 (近い 3 本の平均) に近い上位 ${R.rel_rule.top_content} 件)．
+    村田の論文で作った語彙・特異値分解・NMF・概念辞書のまま，関連文献から村田の論文への乖離度だけを作る．
+    <b>B 差し込み</b>: 村田の地図は動かさず，その乖離度に合うように 1 点ずつ置く (古典的 MDS は Gower の公式，SMACOF・非計量・Sammon は 1 点の Guttman 変換，t-SNE は 1 点の KL の最小化)．
+    <b>C 引用の線</b>: 引いている村田の論文と点線で結ぶ．その尺度にデータが無いもの (参考文献・共著者など) は引いている論文の重心に置く．
+    <b>E 対応分析</b>: 「村田の論文 × 2 本以上に引かれている関連文献」の 0/1 の表から，論文と文献を同じ平面に置く (乖離度の選択肢の最後)．</div>`;
+  h += `<h2 style="font-size:12px;margin:12px 0 4px">変換と当てはめ方</h2>` + Object.entries(NOTE_T).map(([k, v]) => `<div class="small">· ${{ none: 'そのまま', geo: '測地', rank: '順位' }[k]}: ${v}</div>`).join('') +
+    METHODS.map(([k, n]) => `<div class="small">· ${n}: ${NOTE_M[k]}</div>`).join('');
+  h += `<h2 style="font-size:12px;margin:12px 0 4px">混合の重み (A / B)</h2><div id="mixbox"></div>`;
+  return h;
+}
+function mixUI() {
+  const box = $('#mixbox'); if (!box) return;
+  box.innerHTML = METRICS.map(m => `<div class="mixrow"><span>${esc(m.name)}</span><input type="range" min="0" max="3" step=".5" data-k="${m.key}" value="${PANES[0].spec.weights[m.key]}"><span class="small" id="w_${m.key}">${PANES[0].spec.weights[m.key]}</span></div>`).join('') +
+    '<div class="small">重みは A と B で共通．「混合」を選んだ枠に効く．重みが 0 でない乖離度の全てにデータのある文献だけが残る (平均を 1 にそろえて足す)．</div>';
+  box.querySelectorAll('input').forEach(inp => inp.onchange = () => { const k = inp.dataset.k; PANES.forEach(p => { p.spec.weights[k] = +inp.value; }); $('#w_' + k).textContent = inp.value;
+    PANES.slice(0, S.layout).forEach(p => { if (p.spec.metric === 'mix') compute(p); }); });
+}
+const _sd = showDetail; showDetail = function () { _sd(); mixUI(); };
+
+// ============================================================ 乖離度どうしの比較
+function compareTable() {
+  const K = METRICS.length, rho = [], knn = [], cnt = [];
+  for (let a = 0; a < K; a++) { rho.push([]); knn.push([]); cnt.push([]); for (let b = 0; b < K; b++) {
+    const A = METRICS[a], B = METRICS[b], com = A.idx.filter(g => B.pos.has(g)); cnt[a][b] = com.length;
+    if (com.length < 12) { rho[a][b] = knn[a][b] = null; continue; }
+    const la = com.map(g => A.pos.get(g)), lb = com.map(g => B.pos.get(g)), xs = [], ys = [];
+    for (let i = 0; i < com.length; i++) for (let j = i + 1; j < com.length; j++) { xs.push(mval(A, la[i], la[j])); ys.push(mval(B, lb[i], lb[j])); }
+    rho[a][b] = a === b ? 1 : spearman(xs, ys);
+    const n = com.length, k = 5; let hit = 0;
+    for (let i = 0; i < n; i++) {
+      const oa = [...Array(n).keys()].filter(j => j !== i).sort((p, q) => mval(A, la[i], la[p]) - mval(A, la[i], la[q])).slice(0, k);
+      const ob = new Set([...Array(n).keys()].filter(j => j !== i).sort((p, q) => mval(B, lb[i], lb[p]) - mval(B, lb[i], lb[q])).slice(0, k));
+      oa.forEach(j => { if (ob.has(j)) hit++; });
+    }
+    knn[a][b] = hit / (n * k);
+  } }
+  const cell = (v, base) => v === null ? '<td class="small">—</td>' : `<td style="background:${seq(Math.max(0, Math.min(1, (v - base) / (1 - base))))};color:${v - base > .6 * (1 - base) ? '#fff' : 'inherit'}">${v.toFixed(2)}</td>`;
+  const head = '<tr><th></th>' + METRICS.map(m => `<th>${esc(m.key)}</th>`).join('') + '</tr>';
+  let h = `<h3 style="margin-top:0">乖離度どうしの比較</h3>
+  <p class="small">共通の文献の全ての組について，乖離度の値の順位相関 (Spearman) と，各文献の 5 近傍の重なりの平均．対角は件数．値の高い組は似た地図を作る．</p>
+  <table class="cmp"><tr><th colspan="${K + 1}">順位相関 (上) / 共通の件数 (対角)</th></tr>${head}` +
+    METRICS.map((m, a) => `<tr><th>${esc(m.key)}</th>` + METRICS.map((_, b) => a === b ? `<td class="small">${cnt[a][a]}</td>` : cell(rho[a][b], 0)).join('') + '</tr>').join('') +
+  `</table><br><table class="cmp"><tr><th colspan="${K + 1}">5 近傍の重なり</th></tr>${head}` +
+    METRICS.map((m, a) => `<tr><th>${esc(m.key)}</th>` + METRICS.map((_, b) => a === b ? '<td class="small">—</td>' : cell(knn[a][b], 0)).join('') + '</tr>').join('') +
+  `</table><div style="margin-top:10px">` + METRICS.map(m => `<div class="small"><b>${m.key}</b>: ${esc(m.name)}</div>`).join('') + `</div><p style="text-align:right"><button onclick="document.getElementById('modal').classList.remove('show')">閉じる</button></p>`;
+  $('#modalBox').innerHTML = h; $('#modal').classList.add('show');
+}
+
+// ============================================================ 操作
+const ths = $('#themeSel'); ths.innerHTML = R.themes.map((t, k) => `<option value="${k}">${esc(t.name)}</option>`).join('');
+$('#colorBy').value = S.colorBy;
+$('#colorBy').onchange = e => { S.colorBy = e.target.value; S.hidden.clear(); ths.style.display = S.colorBy === 'theme' ? '' : 'none'; legend(); render(); };
+ths.onchange = e => { S.theme = +e.target.value; render(); };
+$('#yearOn').onchange = e => { S.yearOn = e.target.checked; render(); };
+$('#year').oninput = e => { S.year = +e.target.value; S.yearOn = true; $('#yearOn').checked = true; $('#yearLab').textContent = `${S.year} 年まで`; render(); };
+let playT = null;
+$('#play').onclick = () => { if (playT) { clearInterval(playT); playT = null; $('#play').textContent = '▶'; return; }
+  S.yearOn = true; $('#yearOn').checked = true; if (S.year >= 2026) S.year = 1991; $('#play').textContent = '■';
+  playT = setInterval(() => { S.year++; $('#year').value = S.year; $('#yearLab').textContent = `${S.year} 年まで`; render(); if (S.year >= 2026) { clearInterval(playT); playT = null; $('#play').textContent = '▶'; } }, 450); };
+$('#showCite').onchange = e => { S.showCite = e.target.checked; render(); };
+$('#showNN').onchange = e => { S.showNN = e.target.checked; render(); };
+$('#kNN').onchange = e => { S.kNN = +e.target.value; render(); };
+$('#showLab').onchange = e => { S.showLab = e.target.checked; render(); };
+function relCount() { $('#relCount').textContent = S.relOn ? `${REL.filter(relVisible).length} 件を表示 (全 ${REL.length} 件)` : `全 ${REL.length} 件`; }
+$('#relOn').checked = S.relOn;
+$('#relOn').onchange = e => { S.relOn = e.target.checked; relCount(); render(); };
+$('#relCited').onchange = e => { S.relCited = e.target.checked; relCount(); render(); };
+$('#relContent').onchange = e => { S.relContent = e.target.checked; relCount(); render(); };
+$('#relMin').onchange = e => { S.relMin = +e.target.value; relCount(); render(); };
+$('#relTop').onchange = e => { S.relTop = +e.target.value; relCount(); render(); };
+relCount();
+$('#hideOff').onchange = e => { S.hideOff = e.target.checked; render(); };
+$('#q').onkeydown = e => { if (e.key !== 'Enter') return; const q = e.target.value.trim().toLowerCase(); S.hits = new Set();
+  if (q) ALL.forEach(d => { if (d.rel && !relVisible(d)) return; if ((d.title + ' ' + d.authors.join(' ') + ' ' + d.concepts.join(' ') + ' ' + d.venue + ' ' + d.year).toLowerCase().includes(q)) S.hits.add(d.i); });
+  $('#qres').textContent = q ? `${S.hits.size} 件` : ''; if (S.hits.size === 1) { S.sel = [...S.hits][0]; showDetail(); } render(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { S.sel = S.sel2 = null; S.hits = new Set(); $('#q').value = ''; $('#qres').textContent = ''; $('#modal').classList.remove('show'); showDetail(); render(); } });
+$('#lay1').onclick = () => { S.layout = 1; $('#lay1').classList.add('on'); $('#lay2').classList.remove('on'); buildPanes(); };
+$('#lay2').onclick = () => { S.layout = 2; $('#lay2').classList.add('on'); $('#lay1').classList.remove('on'); buildPanes(); };
+$('#btnCmp').onclick = compareTable;
+$('#modal').onclick = e => { if (e.target.id === 'modal') $('#modal').classList.remove('show'); };
+$('#btnTheme').onclick = () => { const r = document.documentElement; r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark'; legend(); render(); };
+window.addEventListener('resize', render);
+if (S.layout === 2) { $('#lay2').classList.add('on'); $('#lay1').classList.remove('on'); }
+legend(); showDetail(); buildPanes();
+</script>
+</body>
+</html>
