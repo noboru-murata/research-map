@@ -67,7 +67,7 @@ label.row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
 .busy { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: color-mix(in srgb, var(--surface-0) 60%, transparent); color: var(--text-secondary); }
 .busy.show { display: flex; }
 .desc { font-size: 12px; color: var(--text-secondary); background: var(--surface-2); border-radius: 6px; padding: 6px 8px; margin: 4px 0; }
-#tip { position: fixed; pointer-events: none; background: var(--surface-1); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font-size: 12px; max-width: 360px; box-shadow: 0 2px 10px rgba(0,0,0,.12); display: none; z-index: 10; }
+#tip { position: fixed; pointer-events: none; background: var(--surface-1); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font-size: 14px; line-height: 1.45; max-width: 420px; box-shadow: 0 2px 10px rgba(0,0,0,.12); display: none; z-index: 10; }
 #detail .title { font-size: 14px; font-weight: 600; line-height: 1.4; }
 #detail .meta { color: var(--text-secondary); margin: 3px 0 6px; }
 #detail .abs { font-size: 12px; color: var(--text-secondary); max-height: 170px; overflow-y: auto; border-left: 3px solid var(--line); padding-left: 8px; }
@@ -86,7 +86,8 @@ table.cmp th { font-weight: 500; color: var(--text-secondary); }
 #modal { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none; align-items: center; justify-content: center; z-index: 20; }
 #modal.show { display: flex; }
 #modal .box { background: var(--surface-1); border-radius: 10px; padding: 16px 20px; max-width: 900px; max-height: 88vh; overflow: auto; }
-text.lab { font-size: 10px; fill: var(--text-secondary); pointer-events: none; paint-order: stroke; stroke: var(--surface-0); stroke-width: 3px; }
+#tip .small { font-size: 13px; }
+text.lab { font-size: 11.5px; fill: var(--text-secondary); pointer-events: none; paint-order: stroke; stroke: var(--surface-0); stroke-width: 3px; }
 input[type=range] { width: 100%; }
 .mixrow { display: grid; grid-template-columns: 1fr 70px 26px; gap: 4px; align-items: center; font-size: 11.5px; }
 </style>
@@ -128,13 +129,19 @@ input[type=range] { width: 100%; }
   <label class="row"><input type="checkbox" id="relContent" checked> 題・要旨が近い上位 <input type="number" id="relTop" value="30" min="0" max="100" step="5" style="width:48px"> 件</label>
   <div class="small" id="relCount"></div>
   <div class="small">村田の地図は固定して乖離度から差し込む (B)．点線は引いている論文 (C．「引用の線」で全部)．◇ の大きさは引かれた本数．</div>
+<div id="thBox">
+  <h2>修士論文 (村田研究室)</h2>
+  <label class="row"><input type="checkbox" id="thOn"> 地図に表示する (▲)</label>
+  <div class="small" id="thCount"></div>
+  <div class="small">姓・題目・年度だけを出す．置き方は関連文献と同じ (B)．その尺度にデータが無いものは，引いている村田の論文 (C) か概念辞書で近い村田の論文 (D) の重心．</div>
+  </div>
   <h2>検索</h2>
   <input type="search" id="q" placeholder="題・著者・概念 (Enter)" style="width:100%">
   <div class="small" id="qres"></div>
   <h2>この版について</h2>
-  <div class="small">N. Murata の雑誌・国際会議の論文と，関係の深い他の著者の文献の地図．文献の情報は村田の文献データベース (Zotero) と Scopus から．要旨は載せていません (各文献は DOI のリンクから)．乖離度は要旨と全文から計算した値．2026-11-25 作成．</div>
+  <div class="small">N. Murata の雑誌・国際会議の論文と，関係の深い他の著者の文献の地図．村田研究室の修士論文 (▲) も重ねられる．文献の情報は村田の文献データベース (Zotero) と Scopus から．要旨は載せていません (各文献は DOI のリンクから)．乖離度は要旨と全文から計算した値．2026-11-25 作成．</div>
   <h2>印</h2>
-  <div class="small">● library.bib (要旨・PDF あり) &nbsp; ○ Scopus だけ (題のみ)．対象は雑誌と国際会議の論文 (書籍の章・著書・講義ノートは除く)．</div>
+  <div class="small">● library.bib (要旨・PDF あり) &nbsp; ○ Scopus だけ (題のみ) &nbsp; ◇ 関連文献 &nbsp; ▲ 修士論文．対象は雑誌と国際会議の論文 (書籍の章・著書・講義ノートは除く)．</div>
   <div class="small" style="margin-top:8px">ホイールで拡大，ドラッグで移動 (3D では回転．Shift＋ドラッグで移動)，ダブルクリックで元に．点をクリックで詳細 (Shift で比べる先も)．Esc で解除．</div>
 </aside>
 <div id="panes"></div>
@@ -162,7 +169,12 @@ const MET = {}; METRICS.forEach(m => { MET[m.key] = m; m.pos = new Map(m.idx.map
 // 関連文献 (村田の著作以外．build_features.py が選ぶ)．番号は村田の論文の後に続ける (N, N+1, ...)
 const REL = (R.related || []).map((r, k) => Object.assign(r, { i: N + k, rel: true, source: 'related', co: 8, group: r.theme ? GROUP_OF[r.theme] : -1,
   short: (r.authors[0] || '').split(',')[0] + (r.authors.length > 2 ? '+' : r.authors.length === 2 ? '&' + (r.authors[1] || '').split(',')[0] : '') + ' ' + (r.year || '') }));
-const ALL = DOCS.concat(REL);
+REL.forEach(r => { r.kind = 'rel'; r.links = r.citers; });
+// 修士論文 (村田研究室．地図では姓・題目・年度だけを出す)
+const THS = (R.theses || []).map((t, k) => Object.assign(t, { i: N + REL.length + k, rel: true, kind: 'thesis', source: 'thesis', co: 8, citers: [],
+  group: t.theme ? GROUP_OF[t.theme] : -1, authors: [t.surname], venue: '修士論文', concepts: [], short: t.surname + ' ' + t.year }));
+const EXT = REL.concat(THS);                 // 村田の地図に後から差し込むもの (関連文献，修士論文)
+const ALL = DOCS.concat(EXT);
 const CA = R.ca;
 $('#hdrnote').textContent = `${N} 件 (library.bib ${DOCS.filter(d => d.source === 'library').length}，Scopus だけ ${DOCS.filter(d => d.source === 'scopus').length}${DOCS.some(d => d.source === 'docs') ? '，docs ' + DOCS.filter(d => d.source === 'docs').length : ''})．${R.generated} 作成`;
 
@@ -260,18 +272,21 @@ function placeRelated(res, method) {
     const xs = P.map(q => q[0]), dh = pava(P.map(q => q[1]));
     res.fit.iso = v => { if (v <= xs[0]) return dh[0]; if (v >= xs[xs.length - 1]) return dh[dh.length - 1]; let lo = 0, hi = xs.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] <= v) lo = m; else hi = m; } return dh[lo]; };
   }
-  res.RD = REL.map(r => relRow(res, r));
-  res.RY = REL.map((r, k) => {
+  res.RD = EXT.map(r => relRow(res, r));
+  res.RY = EXT.map((r, k) => {
     if (res.RD[k]) return { y: placeOne(res, res.RD[k]), how: 'B' };
-    return placeByCiters(res, r, k);
+    return placeFallback(res, r, k);
   });
 }
-// C: 引いている村田の論文の重心 (少しずらして重ならないように)
-function placeByCiters(res, r, k) {
-  const ls = r.citers.filter(g => res.pos.has(g)).map(g => res.pos.get(g)); if (!ls.length) return null;
+// その尺度にデータが無いとき．C: 引用でつながる村田の論文 (関連文献なら引いている論文，修士論文なら引いている村田の論文) の重心．
+// それも無ければ D: 概念辞書で近い村田の論文 5 本の重心．少しずらして重ならないようにする
+function placeFallback(res, r, k) {
+  let ls = (r.links || []).filter(g => res.pos.has(g)).map(g => res.pos.get(g)), how = 'C';
+  if (!ls.length) { ls = (r.cnear || []).filter(g => res.pos.has(g)).map(g => res.pos.get(g)); how = 'D'; }
+  if (!ls.length) return null;
   const m = res.Y[0].length, y = new Array(m).fill(0); ls.forEach(l => { for (let c = 0; c < m; c++) y[c] += res.Y[l][c] / ls.length; });
   let sp = 0; res.Y.forEach(q => { sp = Math.max(sp, Math.abs(q[0])); }); const th = k * 2.39996, rr = sp * .03;
-  y[0] += rr * Math.cos(th); y[1] += rr * Math.sin(th); return { y, how: 'C' };
+  y[0] += rr * Math.cos(th); y[1] += rr * Math.sin(th); return { y, how };
 }
 function rankTransform(D) {
   const n = D.length, P = []; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) P.push([i, j, D[i][j]]);
@@ -435,7 +450,7 @@ function procrustes(YA, YB) {
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const PAL = () => ['--c1', '--c2', '--c3', '--c4', '--c5', '--c6', '--c7', '--c8', '--c9'].map(css);
 const S = { colorBy: 'group', theme: 0, hidden: new Set(), yearOn: false, year: 2026, showCite: false, showNN: false, kNN: 3, showLab: false, hideOff: false,
-  sel: null, sel2: null, hover: null, hits: new Set(), layout: 1, relOn: false, relCited: true, relMin: 2, relContent: true, relTop: 30 };
+  sel: null, sel2: null, hover: null, hits: new Set(), layout: 1, thOn: false, relOn: false, relCited: true, relMin: 2, relContent: true, relTop: 30 };
 const METHODS = [['cmds', '古典的 MDS'], ['smacof', '計量的 MDS (SMACOF)'], ['nmds', '非計量 MDS'], ['sammon', 'Sammon'], ['tsne', 't-SNE']];
 const NOTE_M = {
   cmds: '乖離度の二乗を二重中心化して内積の行列にし，上位 2 つの固有ベクトルで置く．反復なし．',
@@ -447,8 +462,8 @@ const NOTE_M = {
 const NOTE_T = { none: '乖離度をそのまま使う．', geo: '乖離度で k 近傍のグラフを作り，最短路の長さに置き換える (Isomap の考え)．', rank: '全ての組の順位 (0〜1) に置き換える．尺度の違う乖離度を混ぜるとき向き．' };
 function newPane(id, spec) { return { id, spec, res: null, Y: null, view: { s: 1, tx: 0, ty: 0 }, el: null }; }
 const PANES = [
-  newPane('A', { metric: 'concept', weights: {}, transform: 'none', k: 8, method: 'tsne', perp: 15, dim: 2 }),
-  newPane('B', { metric: 'biblio', weights: {}, transform: 'none', k: 8, method: 'smacof', perp: 15, dim: 2 }),
+  newPane('A', { metric: 'concept', weights: {}, transform: 'geo', k: 8, method: 'cmds', perp: 15, dim: 3 }),
+  newPane('B', { metric: 'lsa', weights: {}, transform: 'geo', k: 8, method: 'cmds', perp: 15, dim: 3 }),
 ];
 METRICS.forEach(m => { PANES.forEach(p => { p.spec.weights[m.key] = ['concept', 'lsa', 'coauthor'].includes(m.key) ? 1 : 0; }); });
 // URL で初期値: ?a=concept&am=tsne&b=biblio&bm=smacof&layout=2&color=year
@@ -457,9 +472,10 @@ METRICS.forEach(m => { PANES.forEach(p => { p.spec.weights[m.key] = ['concept', 
   if (q.get('a') && (MET[q.get('a')] || ['mix', 'ca'].includes(q.get('a')))) PANES[0].spec.metric = q.get('a');
   if (q.get('b') && (MET[q.get('b')] || ['mix', 'ca'].includes(q.get('b')))) PANES[1].spec.metric = q.get('b');
   if (q.get('am')) PANES[0].spec.method = q.get('am'); if (q.get('bm')) PANES[1].spec.method = q.get('bm');
-  if (q.get('ad') === '3') PANES[0].spec.dim = 3; if (q.get('bd') === '3') PANES[1].spec.dim = 3;
+  ['ad', 'bd'].forEach((k, j) => { if (['2', '3'].includes(q.get(k))) PANES[j].spec.dim = +q.get(k); });
+  ['at', 'bt'].forEach((k, j) => { if (['none', 'geo', 'rank'].includes(q.get(k))) PANES[j].spec.transform = q.get(k); });
   if (q.get('layout') === '2') S.layout = 2; if (q.get('color')) S.colorBy = q.get('color');
-  if (q.get('rel') === '1') S.relOn = true;
+  if (q.get('rel') === '1') S.relOn = true; if (q.get('th') === '1') S.thOn = true;
 })();
 
 // ============================================================ 枠 (pane) を作る
@@ -531,8 +547,8 @@ function compute(p) {
       // E: 対応分析．行 (村田の論文) と列 (引かれている関連文献) の主座標をそのまま使う
       const dm = p.spec.dim; res = { idx: CA.rows.slice(), keys: [], note: '', ca: true, spec: JSON.parse(JSON.stringify(p.spec)) };
       res.Y = CA.F.map(r => r.slice(0, dm)); res.raw = mapDist(CA.F); res.D = res.raw;
-      res.RY = REL.map(() => null); CA.cols.forEach((k, b) => { res.RY[k] = { y: CA.G[b].slice(0, dm), how: 'E' }; });
-      res.RD = REL.map(() => null);
+      res.RY = EXT.map(() => null); CA.cols.forEach((k, b) => { res.RY[k] = { y: CA.G[b].slice(0, dm), how: 'E' }; });
+      res.RD = EXT.map(() => null);
       res.explained = CA.inertia.slice(0, dm).reduce((x, y) => x + y, 0);
     } else {
       res = buildDelta(p.spec); const D = res.D;
@@ -567,6 +583,7 @@ function coordsOf(p) {
   const RY = p.res.RY.map(o => o && { y: f ? f(o.y) : o.y, how: o.how });
   return { Y, RY };
 }
+function extVisible(x) { return x.kind === 'thesis' ? S.thOn : relVisible(x); }
 function relVisible(r) { return S.relOn && ((S.relCited && r.citers.length >= S.relMin) || (S.relContent && r.crank <= S.relTop)); }
 
 // ============================================================ 色
@@ -576,7 +593,7 @@ function colorOf(d) {
     case 'group': return d.group < 0 ? css('--edge') : P[d.group];
     case 'topic': return d.topic < 0 ? css('--edge') : topicColor(d.topic);
     case 'year': return seq((d.year - 1992) / (2026 - 1992));
-    case 'source': return P[{ library: 0, scopus: 1, docs: 2, related: 3 }[d.source]];
+    case 'source': return P[{ library: 0, scopus: 1, docs: 2, related: 3, thesis: 4 }[d.source]];
     case 'coauthor': return d.co >= 7 ? (d.co === 7 ? P[7] : P[8]) : P[d.co];
     case 'theme': return seq(Math.min(1, d.themes[S.theme] / .5));
   }
@@ -607,7 +624,7 @@ function render() { PANES.slice(0, S.layout).forEach(p => p.res && renderPane(p)
 function renderPane(p) {
   const svg = p.el.querySelector('svg'), W = svg.clientWidth, H = svg.clientHeight; if (!W || !H) return;
   const co = coordsOf(p), Y0 = co.Y, res = p.res, is3 = Y0[0].length === 3, v = p.view, pad = 30, out = [];
-  const relVis = REL.map((r, k) => co.RY[k] && relVisible(r) ? co.RY[k] : null);
+  const relVis = EXT.map((r, k) => co.RY[k] && extVisible(r) ? co.RY[k] : null);
   // 尺度を決める点: 村田の論文 (対応分析では見えている関連文献も)
   const frame = res.ca ? Y0.concat(relVis.filter(Boolean).map(o => o.y)) : Y0;
   // 画面の座標 (sx, sy) と奥行き (dz: -1 が奥，1 が手前) を作る
@@ -633,9 +650,9 @@ function renderPane(p) {
   const selSet = new Set([S.sel, S.sel2].filter(x => x !== null));
   if (S.showCite) R.cites.forEach(([a, b]) => { if (res.pos.has(a) && res.pos.has(b)) { const la = res.pos.get(a), lb = res.pos.get(b), hl = selSet.has(a) || selSet.has(b);
     out.push(`<line x1="${X(la)}" y1="${Yy(la)}" x2="${X(lb)}" y2="${Yy(lb)}" stroke="${hl ? css('--nb') : css('--cite')}" stroke-width="${hl ? 1.6 : .8}" opacity="${hl ? .9 : .6}" marker-end="url(#ar${p.id})"/>`); } });
-  // 関連文献の引用の線 (C): 関連文献と，それを引いている村田の論文を結ぶ．選んだものは常に
-  REL.forEach((r, k) => { if (!PR[k]) return; const hl = selSet.has(r.i) || r.citers.some(g => selSet.has(g)); if (!S.showCite && !hl) return;
-    r.citers.forEach(g => { if (!res.pos.has(g)) return; const l = res.pos.get(g); if (!hl && selSet.size && !selSet.has(g)) return;
+  // 引用の線 (C): 関連文献とそれを引いている村田の論文，修士論文とそれが引いている村田の論文を結ぶ．選んだものは常に
+  EXT.forEach((r, k) => { if (!PR[k]) return; const hl = selSet.has(r.i) || r.links.some(g => selSet.has(g)); if (!S.showCite && !hl) return;
+    r.links.forEach(g => { if (!res.pos.has(g)) return; const l = res.pos.get(g); if (!hl && selSet.size && !selSet.has(g)) return;
       out.push(`<line x1="${PR[k][0]}" y1="${PR[k][1]}" x2="${X(l)}" y2="${Yy(l)}" stroke="${hl ? css('--nb') : css('--cite')}" stroke-width="${hl ? 1.3 : .7}" stroke-dasharray="4 3" opacity="${hl ? .85 : .45}"/>`); }); });
   if (S.showNN) res.nn.forEach((js, l) => js.slice(0, S.kNN).forEach(m => { out.push(`<line x1="${X(l)}" y1="${Yy(l)}" x2="${X(m)}" y2="${Yy(m)}" stroke="${css('--edge')}" stroke-width=".7"/>`); }));
   // 選んだ点の乖離度の近傍 (関連文献なら差し込みに使った乖離度で近い村田の論文)
@@ -644,27 +661,33 @@ function renderPane(p) {
     const k = s - N; if (k >= 0 && PR[k] && res.RD[k]) { const a = res.RD[k]; [...a.keys()].sort((x, y) => a[x] - a[y]).slice(0, 5).forEach(m => out.push(`<line x1="${PR[k][0]}" y1="${PR[k][1]}" x2="${X(m)}" y2="${Yy(m)}" stroke="${css('--nb')}" stroke-width="1.2" opacity=".75"/>`)); } });
   // 点: 関連文献 (◇) を下に，村田の論文 (●) を上に．奥のものから
   const items = [];
-  REL.forEach((r, k) => { if (PR[k]) items.push([1, k, PR[k]]); });
+  EXT.forEach((r, k) => { if (PR[k]) items.push([1, k, PR[k]]); });
   res.idx.forEach((g, l) => items.push([0, l, PJ[l]]));
-  const offOf = it => it[0] ? isOff(REL[it[1]]) : isOff(DOCS[res.idx[it[1]]]);
+  const offOf = it => it[0] ? isOff(EXT[it[1]]) : isOff(DOCS[res.idx[it[1]]]);
   items.sort((a, b) => (offOf(b) - offOf(a)) || (b[0] - a[0]) || (a[2][2] - b[2][2]));
   items.forEach(it => {
-    const d = it[0] ? REL[it[1]] : DOCS[res.idx[it[1]]], off = offOf(it); if (off && S.hideOff) return;
+    const d = it[0] ? EXT[it[1]] : DOCS[res.idx[it[1]]], off = offOf(it); if (off && S.hideOff) return;
     const [x, y, dz] = it[2], dk = is3 ? .75 + .25 * (dz + 1) : 1, op = off ? .45 : (is3 ? .55 + .45 * (dz + 1) / 2 : 1);
     const col = off ? css('--edge') : colorOf(d), ring = selSet.has(d.i) || S.hover === d.i || S.hits.has(d.i);
+    if (d.kind === 'thesis') {                 // 修士論文: ▲
+      const sz = 7 * dk * (ring ? 1.25 : 1);
+      out.push(`<path data-i="${d.i}" d="M${x},${y - sz}L${x + sz * .9},${y + sz * .6}L${x - sz * .9},${y + sz * .6}Z" fill="${col}" fill-opacity=".55" stroke="${ring ? css('--ring') : col}" stroke-width="${ring ? 2 : 1.3}" opacity="${op}"/>`);
+      if ((S.showLab && !off) || ring) out.push(`<text class="lab" x="${x + sz + 3}" y="${y + 3}">${esc(d.short)}</text>`);
+      return;
+    }
     if (d.rel) {
-      const sz = (4 + 1.4 * Math.sqrt(d.citers.length)) * dk * (ring ? 1.25 : 1);
+      const sz = (5.5 + 1.6 * Math.sqrt(d.citers.length)) * dk * (ring ? 1.25 : 1);
       out.push(`<path data-i="${d.i}" d="M${x},${y - sz}L${x + sz},${y}L${x},${y + sz}L${x - sz},${y}Z" fill="${col}" fill-opacity=".35" stroke="${ring ? css('--ring') : col}" stroke-width="${ring ? 2 : 1.2}" opacity="${op}"/>`);
       if ((S.showLab && !off) || ring) out.push(`<text class="lab" x="${x + sz + 3}" y="${y + 3}" style="font-style:italic">${esc(d.short)}</text>`);
       return;
     }
-    const big = (d.source !== 'scopus' ? 5.5 : 4) * dk;
+    const big = (d.source !== 'scopus' ? 7.5 : 5.5) * dk;
     const sw = ring ? 2.2 : (d.source === 'scopus' ? 1.6 : .8), st = ring ? css('--ring') : (d.source === 'scopus' ? col : css('--surface-0'));
     const fill = d.source === 'scopus' ? css('--surface-1') : col;
     out.push(d.source === 'docs'
       ? `<rect data-i="${d.i}" x="${x - 6 * dk}" y="${y - 6 * dk}" width="${12 * dk}" height="${12 * dk}" fill="${fill}" stroke="${st}" stroke-width="${sw}" opacity="${op}"/>`
       : `<circle data-i="${d.i}" cx="${x}" cy="${y}" r="${ring ? big + 1.5 : big}" fill="${fill}" stroke="${st}" stroke-width="${sw}" opacity="${op}"/>`);
-    if ((S.showLab && !off) || ring) out.push(`<text class="lab" x="${x + 7}" y="${y + 3}">${esc(d.short)}</text>`);
+    if ((S.showLab && !off) || ring) out.push(`<text class="lab" x="${x + 9}" y="${y + 4}">${esc(d.short)}</text>`);
   });
   svg.innerHTML = `<defs><marker id="ar${p.id}" viewBox="0 0 6 6" refX="9" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0L6,3L0,6z" fill="${css('--cite')}"/></marker></defs>` + out.join('');
   svg.querySelectorAll('[data-i]').forEach(el => {
@@ -675,8 +698,9 @@ function renderPane(p) {
     el.onclick = e => { if (e.shiftKey) S.sel2 = S.sel2 === i ? null : i; else { S.sel = i; S.sel2 = null; } showDetail(); render(); };
     el.style.cursor = 'pointer';
   });
-  const nB = relVis.filter(o => o && o.how === 'B').length, nC = relVis.filter(o => o && o.how === 'C').length, nE = relVis.filter(o => o && o.how === 'E').length;
-  const relNote = S.relOn ? (res.ca ? ` · 関連文献 ${nE} 件 (列の主座標)` : ` · 関連文献 ${nB + nC} 件 (B 差し込み ${nB} / C 引用の重心 ${nC})`) : '';
+  const cnt = (kind, how) => relVis.filter((o, k) => o && EXT[k].kind === kind && o.how === how).length;
+  const extNote = kind => { const b = cnt(kind, 'B'), c = cnt(kind, 'C'), dd = cnt(kind, 'D'); return `${b + c + dd} 件 (B ${b} / C ${c} / D ${dd})`; };
+  const relNote = (S.relOn ? (res.ca ? ` · 関連文献 ${cnt('rel', 'E')} 件 (列の主座標)` : ` · 関連文献 ${extNote('rel')}`) : '') + (S.thOn && !res.ca ? ` · 修士論文 ${extNote('thesis')}` : '');
   if (res.ca) {
     p.el.querySelector('.eval').innerHTML = `${res.idx.length} 本 × ${CA.shape[1]} 件 · ${is3 ? '3 次元' : '2 次元'} · 対応分析 (論文 × 引用文献) · 寄与率 ${CA.inertia.slice(0, Y0[0].length).map(x => (x * 100).toFixed(1) + '%').join(' + ')}${relNote}`;
     return;
@@ -689,9 +713,10 @@ function hoverOthers(src) { PANES.slice(0, S.layout).forEach(p => { if (p !== sr
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 function tip(e, d) {
   const t = $('#tip'); t.style.display = 'block';
-  t.innerHTML = (d.rel ? `<span class="small" style="color:var(--accent)">◇ 関連文献${d.citers.length ? ' · 村田の論文 ' + d.citers.length + ' 本が引く' : ''}</span><br>` : '') + `<b>${esc(d.title)}</b><br><span class="small">${esc(d.authors.slice(0, 4).join('; '))}${d.authors.length > 4 ? ' ほか' : ''} · ${d.year} · ${esc(d.venue).slice(0, 60)}</span>` +
+  if (d.kind === 'thesis') { t.innerHTML = `<span class="small" style="color:var(--accent)">▲ 修士論文 · ${d.year} 年度</span><br><b>${esc(d.title)}</b><br><span class="small">${esc(d.surname)}</span>`; }
+  else t.innerHTML = (d.rel ? `<span class="small" style="color:var(--accent)">◇ 関連文献${d.citers.length ? ' · 村田の論文 ' + d.citers.length + ' 本が引く' : ''}</span><br>` : '') + `<b>${esc(d.title)}</b><br><span class="small">${esc(d.authors.slice(0, 4).join('; '))}${d.authors.length > 4 ? ' ほか' : ''} · ${d.year} · ${esc(d.venue).slice(0, 60)}</span>` +
     (d.concepts.length ? `<br><span class="small">${esc(d.concepts.slice(0, 4).join(', '))}</span>` : '');
-  const x = Math.min(e.clientX + 14, innerWidth - 370), y = Math.min(e.clientY + 12, innerHeight - 90); t.style.left = x + 'px'; t.style.top = y + 'px';
+  const x = Math.min(e.clientX + 16, innerWidth - 430), y = Math.min(e.clientY + 14, innerHeight - 110); t.style.left = x + 'px'; t.style.top = y + 'px';
 }
 
 // ============================================================ 詳細
@@ -702,7 +727,7 @@ function neighborsIn(p, i, k) {
 function showDetail() {
   const el = $('#detail'), i = S.sel;
   if (i === null) { el.innerHTML = '<div class="small">点をクリックすると，題・要旨・概念・乖離度で近い文献を出します．Shift＋クリックでもう 1 点を選ぶと，2 点の間の乖離度を尺度ごとに並べます．</div>' + overview(); return; }
-  if (i >= N) { relDetail(el, ALL[i]); return; }
+  if (i >= N) { ALL[i].kind === 'thesis' ? thesisDetail(el, ALL[i]) : relDetail(el, ALL[i]); return; }
   const d = DOCS[i], gname = d.group >= 0 ? R.groups[d.group].name : '';
   const link = d.doi ? `<a href="https://doi.org/${esc(d.doi)}" target="_blank">doi:${esc(d.doi)}</a>` : '';
   const th = d.themes.map((v, k) => [k, v]).filter(x => x[1] > .04).sort((a, b) => b[1] - a[1]).slice(0, 6);
@@ -719,7 +744,7 @@ function showDetail() {
   const nbs = panes.map(p => neighborsIn(p, i, 8));
   const sets = nbs.map(nb => new Set((nb || []).map(x => x[0])));
   panes.forEach((p, k) => {
-    const nb = nbs[k]; const name = p.spec.metric === 'mix' ? '混合' : MET[p.spec.metric].name;
+    const nb = nbs[k]; const name = p.spec.metric === 'mix' ? '混合' : p.spec.metric === 'ca' ? '対応分析の地図' : MET[p.spec.metric].name;
     h += `<h2 style="font-size:12px;margin:10px 0 3px">${p.id}: ${esc(name)} で近い 8 件</h2>`;
     h += nb ? `<ol>${nb.map(([g, v]) => li(g, v.toFixed(3), S.layout === 2 && sets[1 - k].has(g) ? 'both' : '')).join('')}</ol>` : '<div class="small">この乖離度には入っていない (データなし)</div>';
   });
@@ -738,6 +763,12 @@ function showDetail() {
   el.innerHTML = h;
   el.querySelectorAll('li[data-i]').forEach(x => x.onclick = () => { S.sel = +x.dataset.i; S.sel2 = null; showDetail(); render(); });
 }
+function thesisDetail(el, d) {        // 修士論文: 姓・題目・年度 (と地図での置き方) だけ
+  let h = `<div class="small" style="color:var(--accent)">▲ 修士論文 (村田研究室)</div><div class="title">${esc(d.title)}</div><div class="meta">${esc(d.surname)} · ${d.year} 年度</div>`;
+  PANES.slice(0, S.layout).forEach(p => { if (!p.res) return; const o = p.res.RY[d.i - N];
+    h += `<div class="small">${p.id}: ${!o ? 'この地図には置けない' : { B: 'B: 乖離度から差し込み', C: 'C: 引いている村田の論文の重心', D: 'D: 概念辞書で近い村田の論文の重心' }[o.how]}</div>`; });
+  el.innerHTML = h;
+}
 function relDetail(el, d) {
   const link = d.doi ? `<a href="https://doi.org/${esc(d.doi)}" target="_blank">doi:${esc(d.doi)}</a>` : '';
   const li = (g, extra) => `<li data-i="${g}">${esc(ALL[g].short)} — ${esc(ALL[g].title.slice(0, 70))} <span class="d">${extra || ''}</span></li>`;
@@ -749,7 +780,7 @@ function relDetail(el, d) {
   if (d.concepts.length) h += `<h2 style="font-size:12px;margin:10px 0 3px">概念 (辞書で多いもの)</h2><div class="tags">${d.concepts.map(c => `<span>${esc(c)}</span>`).join('')}</div>`;
   PANES.slice(0, S.layout).forEach(p => {
     if (!p.res) return; const k = d.i - N, o = p.res.RY[k], a = p.res.RD && p.res.RD[k];
-    const how = !o ? 'この地図には置けない (データも引用もない)' : { B: 'B: 乖離度から差し込み', C: 'C: 引いている論文の重心 (この尺度にデータなし)', E: 'E: 対応分析の列の主座標' }[o.how];
+    const how = !o ? 'この地図には置けない (データも引用もない)' : { B: 'B: 乖離度から差し込み', C: 'C: 引いている論文の重心 (この尺度にデータなし)', D: 'D: 概念辞書で近い村田の論文の重心 (この尺度にデータなし)', E: 'E: 対応分析の列の主座標' }[o.how];
     h += `<h2 style="font-size:12px;margin:10px 0 3px">${p.id}: ${esc(how)}</h2>`;
     if (a) { const nb = [...a.keys()].sort((x, y) => a[x] - a[y]).slice(0, 6); h += `<div class="small">差し込みに使った乖離度で近い村田の論文</div><ol>${nb.map(l => li(p.res.idx[l], a[l].toFixed(3))).join('')}</ol>`; }
   });
@@ -832,9 +863,12 @@ $('#relContent').onchange = e => { S.relContent = e.target.checked; relCount(); 
 $('#relMin').onchange = e => { S.relMin = +e.target.value; relCount(); render(); };
 $('#relTop').onchange = e => { S.relTop = +e.target.value; relCount(); render(); };
 relCount();
+if (!THS.length) $('#thBox').style.display = 'none';      // 公開版には修士論文を入れない
+function thCount() { $('#thCount').textContent = THS.length ? `${THS.length} 件 (${Math.min(...THS.map(t => t.year))}〜${Math.max(...THS.map(t => t.year))} 年度)` : 'データなし'; }
+$('#thOn').checked = S.thOn; $('#thOn').onchange = e => { S.thOn = e.target.checked; render(); }; thCount();
 $('#hideOff').onchange = e => { S.hideOff = e.target.checked; render(); };
 $('#q').onkeydown = e => { if (e.key !== 'Enter') return; const q = e.target.value.trim().toLowerCase(); S.hits = new Set();
-  if (q) ALL.forEach(d => { if (d.rel && !relVisible(d)) return; if ((d.title + ' ' + d.authors.join(' ') + ' ' + d.concepts.join(' ') + ' ' + d.venue + ' ' + d.year).toLowerCase().includes(q)) S.hits.add(d.i); });
+  if (q) ALL.forEach(d => { if (d.rel && !extVisible(d)) return; if ((d.title + ' ' + d.authors.join(' ') + ' ' + d.concepts.join(' ') + ' ' + d.venue + ' ' + d.year).toLowerCase().includes(q)) S.hits.add(d.i); });
   $('#qres').textContent = q ? `${S.hits.size} 件` : ''; if (S.hits.size === 1) { S.sel = [...S.hits][0]; showDetail(); } render(); };
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { S.sel = S.sel2 = null; S.hits = new Set(); $('#q').value = ''; $('#qres').textContent = ''; $('#modal').classList.remove('show'); showDetail(); render(); } });
 $('#lay1').onclick = () => { S.layout = 1; $('#lay1').classList.add('on'); $('#lay2').classList.remove('on'); buildPanes(); };
