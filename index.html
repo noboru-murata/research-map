@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<script>/* 明暗の既定は明．?theme=dark で暗く開く */
-(function () { var t = new URLSearchParams(location.search).get('theme'); document.documentElement.dataset.theme = t === 'dark' ? 'dark' : 'light'; })();</script>
+<script>/* 明暗の既定は暗 (2026-11-25)．?theme=light で明るく開く */
+(function () { var t = new URLSearchParams(location.search).get('theme'); document.documentElement.dataset.theme = t === 'light' ? 'light' : 'dark'; })();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>N. Murata の研究の地図</title>
@@ -34,6 +34,8 @@ header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding
 header h1 { font-size: 15px; margin: 0 6px 0 0; font-weight: 600; }
 header .grow { flex: 1; }
 header .note { color: var(--text-muted); font-size: 12px; }
+header #repoLink { font-size: 13px; text-decoration: none; border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; }
+header #repoLink:hover { background: var(--surface-2); }
 button, select, input[type=number], input[type=search] { font: inherit; color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; }
 button { cursor: pointer; }
 button:hover { background: var(--surface-2); }
@@ -99,6 +101,7 @@ input[type=range] { width: 100%; }
   <span class="grow"></span>
   <span class="seg"><button id="lay1" class="on">1 枚</button><button id="lay2">2 枚で比べる</button></span>
   <button id="btnCmp" title="乖離度どうしの一致を表で見る">乖離度どうしの比較</button>
+  <a id="repoLink" href="https://github.com/noboru-murata/research-map#readme" target="_blank" rel="noopener" title="使い方と作り方の説明 (GitHub の README)">説明 (GitHub)</a>
   <button id="btnTheme">明暗</button>
 </header>
 <main>
