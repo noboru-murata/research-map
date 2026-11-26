@@ -94,6 +94,14 @@ input[type=range] { width: 100%; }
 .pane svg { touch-action: none; -webkit-user-select: none; user-select: none; }
 .mobile-only { display: none; }
 #scrim { display: none; }
+#peek { display: none; }
+details.sec { border-top: 1px solid var(--line); margin-top: 8px; }
+details.sec > summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); padding: 7px 0 5px; list-style: none; }
+details.sec > summary::-webkit-details-marker { display: none; }
+details.sec > summary::before { content: '▸ '; color: var(--text-muted); }
+details.sec[open] > summary::before { content: '▾ '; }
+details.sec .secbody { padding-bottom: 4px; }
+.pane .bar .seg.mode button { padding: 2px 7px; }
 /* 携帯・狭い画面 (幅 900px 以下): 地図を全面に，設定は左からの引き出し，詳細は下からの板 */
 @media (max-width: 900px) {
   body { font-size: 14px; }
@@ -121,6 +129,12 @@ input[type=range] { width: 100%; }
   .pane .bar select.met { max-width: 46vw; }
   .pane .eval { font-size: 11px; padding: 3px 6px; }
   #tip { display: none !important; }
+  #peek.show { display: flex; position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 24; gap: 8px; align-items: flex-start;
+    background: var(--surface-1); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; box-shadow: 0 4px 18px rgba(0,0,0,.4); cursor: pointer; }
+  #peek .title { font-size: 14px; font-weight: 600; line-height: 1.35; }
+  #peek .more { font-size: 12px; color: var(--accent); margin-top: 4px; }
+  #peekBody { flex: 1; min-width: 0; }
+  #peekClose { flex: none; }
   #modal .box { max-width: 96vw; padding: 10px 12px; }
   .bars div { grid-template-columns: 120px 1fr 30px; }
 }
@@ -186,6 +200,7 @@ input[type=range] { width: 100%; }
 <div id="panes"></div>
 <aside class="right" id="detailBox"><div class="sheetbar mobile-only"><button id="closeDetail">× 閉じる</button></div><div id="detail"><div class="small">点をクリックすると，題・要旨・概念・乖離度で近い文献を出します．</div></div></aside>
 <div id="scrim"></div>
+<div id="peek"><div id="peekBody"></div><button id="peekClose" aria-label="閉じる">×</button></div>
 </main>
 <div id="tip"></div>
 <div id="modal"><div class="box" id="modalBox"></div></div>
@@ -490,7 +505,7 @@ function procrustes(YA, YB) {
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const PAL = () => ['--c1', '--c2', '--c3', '--c4', '--c5', '--c6', '--c7', '--c8', '--c9'].map(css);
 const S = { colorBy: 'group', theme: 0, hidden: new Set(), yearOn: false, year: 2026, showCite: false, showNN: false, kNN: 3, showLab: false, hideOff: false,
-  sel: null, sel2: null, hover: null, hits: new Set(), layout: 1, thOn: false, relOn: false, relCited: true, relMin: 2, relContent: true, relTop: 30 };
+  sel: null, sel2: null, hover: null, hits: new Set(), layout: 1, thOn: false, relOn: false, openSec: new Set(matchMedia('(max-width: 900px)').matches ? [] : ['nb']), relCited: true, relMin: 2, relContent: true, relTop: 30 };
 const METHODS = [['cmds', '古典的 MDS'], ['smacof', '計量的 MDS (SMACOF)'], ['nmds', '非計量 MDS'], ['sammon', 'Sammon'], ['tsne', 't-SNE']];
 const NOTE_M = {
   cmds: '乖離度の二乗を二重中心化して内積の行列にし，上位 2 つの固有ベクトルで置く．反復なし．',
@@ -528,7 +543,8 @@ function paneHTML(p) {
     <select class="mth" title="当てはめ方">${METHODS.map(m => `<option value="${m[0]}">${m[1]}</option>`).join('')}</select>
     <span class="kbox small">k <input type="number" class="k" min="3" max="30" style="width:44px"></span>
     <span class="pbox small">perp <input type="number" class="perp" min="3" max="50" style="width:44px"></span>
-    <span class="rbox"><button class="spin" title="縦の軸のまわりに回し続ける">⟳ 回転</button>
+    <span class="rbox"><span class="seg mode" title="1 本指 (マウス) のドラッグで回すか動かすか．2 本指・右ボタン・Shift＋ドラッグはいつも移動"><button data-m="rotate">↻ 回転</button><button data-m="pan">✥ 移動</button></span>
+      <button class="spin" title="縦の軸のまわりに回し続ける">⟳ 自動</button>
       <span class="seg"><button class="vw" data-v="top" title="第 1・第 2 軸の面を正面から">正面</button><button class="vw" data-v="side" title="第 1・第 3 軸の面">横</button><button class="vw" data-v="obl" title="斜めから">斜</button></span></span>
     ${p.id === 'B' ? '<label class="small"><input type="checkbox" class="align" checked> A に向きを合わせる</label>' : ''}
     </div>
@@ -549,6 +565,8 @@ function buildPanes() {
     sync();
     el.querySelectorAll('.dim button').forEach(b => b.onclick = () => { const d = +b.dataset.d; if (d === p.spec.dim) return; p.spec.dim = d; stopSpin(p); sync(); compute(p); });
     q('.spin').onclick = () => { p.spin ? stopSpin(p) : startSpin(p); };
+    const syncMode = () => el.querySelectorAll('.mode button').forEach(b => b.classList.toggle('on', b.dataset.m === (p.dragMode || 'rotate')));
+    el.querySelectorAll('.mode button').forEach(b => b.onclick = () => { p.dragMode = b.dataset.m; syncMode(); }); syncMode();
     el.querySelectorAll('.vw').forEach(b => b.onclick = () => { stopSpin(p); setAngle(p, { top: [0, 0], side: [0, Math.PI / 2], obl: [.6, .45] }[b.dataset.v]); });
     q('.met').onchange = e => { p.spec.metric = e.target.value; sync(); compute(p); };
     q('.trf').onchange = e => { p.spec.transform = e.target.value; sync(); compute(p); };
@@ -575,13 +593,17 @@ function setupZoom(p) {
   svg.addEventListener('pointerdown', e => {
     ptr.set(e.pointerId, [e.clientX, e.clientY]);
     if (ptr.size === 2) { const [a, b] = [...ptr.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, s: p.view.s, tx: p.view.tx, ty: p.view.ty, mx: (a[0] + b[0]) / 2, my: (a[1] + b[1]) / 2 }; drag = null; return; }
-    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, tx: p.view.tx, ty: p.view.ty, rot: p.spec.dim === 3 && !e.shiftKey, a0: angleOf(p).slice(), moved: false, onPoint: e.target.dataset.i !== undefined };
+    // 3D で回すのは「回転」の状態で，Shift も右ボタンも押していないとき．それ以外は移動
+    const rot = p.spec.dim === 3 && (p.dragMode || 'rotate') === 'rotate' && !e.shiftKey && e.button !== 2;
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, tx: p.view.tx, ty: p.view.ty, rot, a0: angleOf(p).slice(), moved: false, onPoint: e.target.dataset.i !== undefined };
   });
   window.addEventListener('pointermove', e => {
     if (!ptr.has(e.pointerId)) return; ptr.set(e.pointerId, [e.clientX, e.clientY]);
     if (pinch && ptr.size >= 2) {
-      const [a, b] = [...ptr.values()], f = (Math.hypot(a[0] - b[0], a[1] - b[1]) || 1) / pinch.d, r = svg.getBoundingClientRect(), mx = pinch.mx - r.left, my = pinch.my - r.top;
-      p.view.s = pinch.s * f; p.view.tx = mx - (mx - pinch.tx) * f; p.view.ty = my - (my - pinch.ty) * f; renderPane(p); return;
+      // 2 本指: 指の間隔で拡大・縮小，指の中点の動きで移動 (始めの中点の下にあった所が今の中点の下に来る)
+      const [a, b] = [...ptr.values()], f = (Math.hypot(a[0] - b[0], a[1] - b[1]) || 1) / pinch.d, r = svg.getBoundingClientRect();
+      const m0x = pinch.mx - r.left, m0y = pinch.my - r.top, m1x = (a[0] + b[0]) / 2 - r.left, m1y = (a[1] + b[1]) / 2 - r.top;
+      p.view.s = pinch.s * f; p.view.tx = m1x - (m0x - pinch.tx) * f; p.view.ty = m1y - (m0y - pinch.ty) * f; renderPane(p); return;
     }
     if (!drag || e.pointerId !== drag.id) return;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
@@ -594,13 +616,14 @@ function setupZoom(p) {
     if (drag && drag.id === e.pointerId) {
       if (drag.moved) { p.justDragged = true; setTimeout(() => { p.justDragged = false; }, 60); }
       else if (!drag.onPoint && e.pointerType !== 'mouse') {          // 背景のタップ: 引き出しを閉じる．素早い 2 回で元の視点
-        closePanel(); const now = Date.now(); if (now - lastTap < 320) resetView(); lastTap = now;
+        closePanel(); hidePeek(); const now = Date.now(); if (now - lastTap < 320) resetView(); lastTap = now;
       }
       drag = null; svg.classList.remove('drag');
     }
   };
   window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
   svg.addEventListener('dblclick', resetView);
+  svg.addEventListener('contextmenu', e => e.preventDefault());       // 右ボタンのドラッグで移動するため
 }
 function compute(p) {
   const busy = p.el.querySelector('.busy'); busy.classList.add('show');
@@ -758,7 +781,7 @@ function renderPane(p) {
     el.onmouseenter = e => { if (NOHOVER()) return; S.hover = i; tip(e, ALL[i]); hoverOthers(p); };
     el.onmousemove = e => tip(e, ALL[i]);
     el.onmouseleave = () => { S.hover = null; $('#tip').style.display = 'none'; hoverOthers(p); };
-    el.onclick = e => { if (p.justDragged) return; if (e.shiftKey) S.sel2 = S.sel2 === i ? null : i; else { S.sel = i; S.sel2 = null; } showDetail(); render(); if (isNarrow()) openDetail(); };
+    el.onclick = e => { if (p.justDragged) return; if (e.shiftKey) S.sel2 = S.sel2 === i ? null : i; else { S.sel = i; S.sel2 = null; } showDetail(); render(); if (isNarrow()) showPeek(i); };
     el.style.cursor = 'pointer';
   });
   const cnt = (kind, how) => relVis.filter((o, k) => o && EXT[k].kind === kind && o.how === how).length;
@@ -774,83 +797,101 @@ function renderPane(p) {
 }
 function hoverOthers(src) { PANES.slice(0, S.layout).forEach(p => { if (p !== src && p.res) renderPane(p); }); }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function shortAuthors(d) { return d.kind === 'thesis' ? d.surname : d.authors.slice(0, 2).join('; ') + (d.authors.length > 2 ? ' ほか' : ''); }
+function kindLabel(d) { return d.kind === 'thesis' ? `▲ 修士論文 · ${d.year} 年度` : d.rel ? '◇ 関連文献' : ''; }
+// 吹き出し (マウスを載せたとき): 題・著者・年だけ．詳しくはクリックで右の欄に
 function tip(e, d) {
-  const t = $('#tip'); t.style.display = 'block';
-  if (d.kind === 'thesis') { t.innerHTML = `<span class="small" style="color:var(--accent)">▲ 修士論文 · ${d.year} 年度</span><br><b>${esc(d.title)}</b><br><span class="small">${esc(d.surname)}</span>`; }
-  else t.innerHTML = (d.rel ? `<span class="small" style="color:var(--accent)">◇ 関連文献${d.citers.length ? ' · 村田の論文 ' + d.citers.length + ' 本が引く' : ''}</span><br>` : '') + `<b>${esc(d.title)}</b><br><span class="small">${esc(d.authors.slice(0, 4).join('; '))}${d.authors.length > 4 ? ' ほか' : ''} · ${d.year} · ${esc(d.venue).slice(0, 60)}</span>` +
-    (d.concepts.length ? `<br><span class="small">${esc(d.concepts.slice(0, 4).join(', '))}</span>` : '');
+  const t = $('#tip'); t.style.display = 'block'; const k = kindLabel(d);
+  t.innerHTML = (k ? `<span class="small" style="color:var(--accent)">${k}</span><br>` : '') + `<b>${esc(d.title)}</b><br><span class="small">${esc(shortAuthors(d))}${d.kind === 'thesis' ? '' : ' · ' + (d.year || '')}</span>`;
   const x = Math.min(e.clientX + 16, innerWidth - 430), y = Math.min(e.clientY + 14, innerHeight - 110); t.style.left = x + 'px'; t.style.top = y + 'px';
 }
+// 携帯: タップで下に小さな札 (題・著者・年・主題)．札をタップすると詳細の板に広げる
+function showPeek(i) {
+  const d = ALL[i], k = kindLabel(d), g = d.group >= 0 ? R.groups[d.group].name : '';
+  $('#peekBody').innerHTML = (k ? `<div class="small" style="color:var(--accent)">${k}</div>` : '') + `<div class="title">${esc(d.title)}</div>` +
+    `<div class="small">${esc(shortAuthors(d))}${d.kind === 'thesis' ? '' : ' · ' + (d.year || '')}${g && d.kind !== 'thesis' ? ' · ' + esc(g) : ''}</div><div class="more">タップで詳しく ▸</div>`;
+  $('#peek').classList.add('show'); $('#detailBox').classList.remove('open');
+}
+function hidePeek() { $('#peek').classList.remove('show'); }
 
 // ============================================================ 詳細
 function neighborsIn(p, i, k) {
   if (!p.res || !p.res.pos.has(i)) return null; const l = p.res.pos.get(i), D = p.res.raw;
   return [...D[l].keys()].filter(j => j !== l).sort((a, b) => D[l][a] - D[l][b]).slice(0, k).map(j => [p.res.idx[j], D[l][j]]);
 }
+function sec(key, title, body) { return body ? `<details class="sec" data-k="${key}"${S.openSec.has(key) ? ' open' : ''}><summary>${title}</summary><div class="secbody">${body}</div></details>` : ''; }
+function wireDetail(el) {
+  el.querySelectorAll('li[data-i]').forEach(x => x.onclick = () => { S.sel = +x.dataset.i; S.sel2 = null; showDetail(); render(); });
+  el.querySelectorAll('details.sec').forEach(x => x.addEventListener('toggle', () => { x.open ? S.openSec.add(x.dataset.k) : S.openSec.delete(x.dataset.k); }));
+}
+const LI = (g, extra, cls) => `<li data-i="${g}" class="${cls || ''}">${esc(ALL[g].short)} — ${esc(ALL[g].title.slice(0, 70))} <span class="d">${extra || ''}</span></li>`;
+const HOW = { B: 'B: 乖離度から差し込み', C: 'C: 引用でつながる村田の論文の重心 (この尺度にデータなし)', D: 'D: 概念辞書で近い村田の論文の重心 (この尺度にデータなし)', E: 'E: 対応分析の列の主座標' };
 function showDetail() {
   const el = $('#detail'), i = S.sel;
-  if (i === null) { el.innerHTML = '<div class="small">点をクリックすると，題・要旨・概念・乖離度で近い文献を出します．Shift＋クリックでもう 1 点を選ぶと，2 点の間の乖離度を尺度ごとに並べます．</div>' + overview(); return; }
+  if (i === null) { el.innerHTML = '<div class="small">点をクリックすると，題・著者・年と，要旨・概念・近い文献などの見出しを出します (見出しを押すと開く)．Shift＋クリックでもう 1 点を選ぶと，2 点の間の乖離度を尺度ごとに並べます．</div>' + overview(); mixUI(); return; }
   if (i >= N) { ALL[i].kind === 'thesis' ? thesisDetail(el, ALL[i]) : relDetail(el, ALL[i]); return; }
   const d = DOCS[i], gname = d.group >= 0 ? R.groups[d.group].name : '';
   const link = d.doi ? `<a href="https://doi.org/${esc(d.doi)}" target="_blank">doi:${esc(d.doi)}</a>` : '';
   const th = d.themes.map((v, k) => [k, v]).filter(x => x[1] > .04).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  let h = `<div class="title">${esc(d.title)}</div>
-    <div class="meta">${esc(d.authors.join('; '))}<br>${d.year} · ${esc(d.venue)} ${link}<br>
-    <span class="small">${{ library: 'library.bib', scopus: 'Scopus だけ (要旨なし)', docs: '著書・講義ノート (docs/)' }[d.source]} · ${esc(d.id)}${d.cited_by != null ? ' · 被引用 ' + d.cited_by + ' (Scopus)' : ''}${d.nref ? ' · 照合した参考文献 ' + d.nref : ''}</span></div>`;
-  if (d.abstract) h += `<div class="abs">${esc(d.abstract)}${d.abstract_from === 'pdf' ? ' <span class="small">(PDF から)</span>' : ''}</div>`;
-  if (d.concepts.length) h += `<h2 style="font-size:12px;margin:10px 0 3px">概念 (辞書で多いもの)</h2><div class="tags">${d.concepts.map(c => `<span>${esc(c)}</span>`).join('')}</div>`;
-  if (th.length) h += `<h2 style="font-size:12px;margin:10px 0 3px">主題の割合 ${gname ? '— 大分類: ' + esc(gname) : ''}</h2><div class="bars">${th.map(([k, v]) => `<div><span>${esc(R.themes[k].name)}</span><span class="b" style="width:${v * 100}%"></span><span>${Math.round(v * 100)}%</span></div>`).join('')}</div>`;
-  if (d.topic >= 0) h += `<div class="small" style="margin-top:4px">NMF の話題: ${esc(MET.topic.topics[d.topic].label)}</div>`;
-  const cited = R.cites.filter(c => c[0] === i).map(c => c[1]), citing = R.cites.filter(c => c[1] === i).map(c => c[0]);
-  const li = (g, extra, cls) => `<li data-i="${g}" class="${cls || ''}">${esc(ALL[g].short)} — ${esc(ALL[g].title.slice(0, 70))} <span class="d">${extra || ''}</span></li>`;
-  const panes = PANES.slice(0, S.layout);
-  const nbs = panes.map(p => neighborsIn(p, i, 8));
-  const sets = nbs.map(nb => new Set((nb || []).map(x => x[0])));
+  let h = `<div class="title">${esc(d.title)}</div><div class="meta">${esc(shortAuthors(d))} · ${d.year}${gname ? ' · ' + esc(gname) : ''}</div>`;
+  h += sec('info', '書誌', `<div class="meta">${esc(d.authors.join('; '))}<br>${d.year} · ${esc(d.venue)} ${link}<br>
+    <span class="small">${{ library: 'library.bib', scopus: 'Scopus だけ (要旨なし)', docs: '著書・講義ノート (docs/)' }[d.source]} · ${esc(d.id)}${d.cited_by != null ? ' · 被引用 ' + d.cited_by + ' (Scopus)' : ''}${d.nref ? ' · 照合した参考文献 ' + d.nref : ''}</span></div>`);
+  if (d.abstract) h += sec('abs', '要旨', `<div class="abs">${esc(d.abstract)}${d.abstract_from === 'pdf' ? ' <span class="small">(PDF から)</span>' : ''}</div>`);
+  h += sec('concept', '概念と主題', (d.concepts.length ? `<div class="tags">${d.concepts.map(c => `<span>${esc(c)}</span>`).join('')}</div>` : '') +
+    (th.length ? `<div class="bars" style="margin-top:6px">${th.map(([k, v]) => `<div><span>${esc(R.themes[k].name)}</span><span class="b" style="width:${v * 100}%"></span><span>${Math.round(v * 100)}%</span></div>`).join('')}</div>` : '') +
+    (d.topic >= 0 ? `<div class="small" style="margin-top:4px">NMF の話題: ${esc(MET.topic.topics[d.topic].label)}</div>` : ''));
+  const panes = PANES.slice(0, S.layout), nbs = panes.map(p => neighborsIn(p, i, 8)), sets = nbs.map(nb => new Set((nb || []).map(x => x[0])));
+  let nbh = '';
   panes.forEach((p, k) => {
-    const nb = nbs[k]; const name = p.spec.metric === 'mix' ? '混合' : p.spec.metric === 'ca' ? '対応分析の地図' : MET[p.spec.metric].name;
-    h += `<h2 style="font-size:12px;margin:10px 0 3px">${p.id}: ${esc(name)} で近い 8 件</h2>`;
-    h += nb ? `<ol>${nb.map(([g, v]) => li(g, v.toFixed(3), S.layout === 2 && sets[1 - k].has(g) ? 'both' : '')).join('')}</ol>` : '<div class="small">この乖離度には入っていない (データなし)</div>';
+    const nb = nbs[k], name = p.spec.metric === 'mix' ? '混合' : p.spec.metric === 'ca' ? '対応分析の地図' : MET[p.spec.metric].name;
+    nbh += `<div class="small" style="margin-top:4px">${p.id}: ${esc(name)}</div>` + (nb ? `<ol>${nb.map(([g, v]) => LI(g, v.toFixed(3), S.layout === 2 && sets[1 - k].has(g) ? 'both' : '')).join('')}</ol>` : '<div class="small">この乖離度には入っていない (データなし)</div>');
   });
-  if (S.layout === 2) h += '<div class="small">太字は A と B の両方で近い 8 件に入るもの．</div>';
-  if (cited.length) h += `<h2 style="font-size:12px;margin:10px 0 3px">引いている本人の論文 (${cited.length})</h2><ol>${cited.map(g => li(g)).join('')}</ol>`;
-  if (citing.length) h += `<h2 style="font-size:12px;margin:10px 0 3px">引かれている本人の論文 (${citing.length})</h2><ol>${citing.map(g => li(g)).join('')}</ol>`;
+  if (S.layout === 2) nbh += '<div class="small">太字は A と B の両方で近い 8 件に入るもの．</div>';
+  h += sec('nb', '乖離度で近い文献', nbh);
+  const cited = R.cites.filter(c => c[0] === i).map(c => c[1]), citing = R.cites.filter(c => c[1] === i).map(c => c[0]);
   const relc = REL.filter(r => r.citers.includes(i)).sort((a, b) => b.citers.length - a.citers.length);
-  if (relc.length) h += `<h2 style="font-size:12px;margin:10px 0 3px">引いている関連文献 (${relc.length})</h2><ol>${relc.map(r => li(r.i, '村田の論文 ' + r.citers.length + ' 本が引く')).join('')}</ol>` + (S.relOn ? '' : '<div class="small">左の「関連文献」で地図に出せる．</div>');
+  const thc = THS.filter(t => t.links.includes(i));
+  let ch = '';
+  if (cited.length) ch += `<div class="small">引いている本人の論文 (${cited.length})</div><ol>${cited.map(g => LI(g)).join('')}</ol>`;
+  if (citing.length) ch += `<div class="small">引かれている本人の論文 (${citing.length})</div><ol>${citing.map(g => LI(g)).join('')}</ol>`;
+  if (relc.length) ch += `<div class="small">引いている関連文献 (${relc.length})</div><ol>${relc.map(r => LI(r.i, '村田の論文 ' + r.citers.length + ' 本が引く')).join('')}</ol>`;
+  if (thc.length) ch += `<div class="small">引かれている修士論文 (${thc.length})</div><ol>${thc.map(t => LI(t.i)).join('')}</ol>`;
+  const nC = cited.length + citing.length + relc.length + thc.length;
+  h += sec('cite', `引用でつながる文献 (${nC})`, ch);
   if (S.sel2 !== null && S.sel2 < N) {
-    const j = S.sel2;
-    h += `<h2 style="font-size:12px;margin:12px 0 3px">比べる先: ${esc(DOCS[j].short)} — ${esc(DOCS[j].title.slice(0, 60))}</h2><table class="cmp"><tr><th>乖離度</th><th>値</th><th>全体での順位</th></tr>`;
+    const j = S.sel2; let t = `<div class="small">${esc(DOCS[j].short)} — ${esc(DOCS[j].title.slice(0, 60))}</div><table class="cmp"><tr><th>乖離度</th><th>値</th><th>全体での順位</th></tr>`;
     METRICS.forEach(m => { if (m.pos.has(i) && m.pos.has(j)) { const v = mval(m, m.pos.get(i), m.pos.get(j)); const pct = m.D.filter(x => x < v).length / m.D.length;
-      h += `<tr><td style="text-align:left">${esc(m.name)}</td><td>${v.toFixed(3)}</td><td>下から ${(pct * 100).toFixed(0)}%</td></tr>`; } else h += `<tr><td style="text-align:left">${esc(m.name)}</td><td colspan="2" class="small">片方がデータなし</td></tr>`; });
-    h += '</table><div class="small">「下から 10%」なら，全ての組のうち近い方の 1 割に入る．</div>';
+      t += `<tr><td style="text-align:left">${esc(m.name)}</td><td>${v.toFixed(3)}</td><td>下から ${(pct * 100).toFixed(0)}%</td></tr>`; } else t += `<tr><td style="text-align:left">${esc(m.name)}</td><td colspan="2" class="small">片方がデータなし</td></tr>`; });
+    t += '</table><div class="small">「下から 10%」なら，全ての組のうち近い方の 1 割に入る．</div>';
+    S.openSec.add('cmp'); h += sec('cmp', '比べる先との乖離度', t);
   }
-  el.innerHTML = h;
-  el.querySelectorAll('li[data-i]').forEach(x => x.onclick = () => { S.sel = +x.dataset.i; S.sel2 = null; showDetail(); render(); });
+  el.innerHTML = h; wireDetail(el);
 }
 function thesisDetail(el, d) {        // 修士論文: 姓・題目・年度 (と地図での置き方) だけ
   let h = `<div class="small" style="color:var(--accent)">▲ 修士論文 (村田研究室)</div><div class="title">${esc(d.title)}</div><div class="meta">${esc(d.surname)} · ${d.year} 年度</div>`;
-  PANES.slice(0, S.layout).forEach(p => { if (!p.res) return; const o = p.res.RY[d.i - N];
-    h += `<div class="small">${p.id}: ${!o ? 'この地図には置けない' : { B: 'B: 乖離度から差し込み', C: 'C: 引いている村田の論文の重心', D: 'D: 概念辞書で近い村田の論文の重心' }[o.how]}</div>`; });
-  el.innerHTML = h;
+  let ph = '';
+  PANES.slice(0, S.layout).forEach(p => { if (!p.res) return; const o = p.res.RY[d.i - N]; ph += `<div class="small">${p.id}: ${!o ? 'この地図には置けない' : HOW[o.how]}</div>`; });
+  h += sec('place', '地図での置き方', ph);
+  el.innerHTML = h; wireDetail(el);
 }
 function relDetail(el, d) {
   const link = d.doi ? `<a href="https://doi.org/${esc(d.doi)}" target="_blank">doi:${esc(d.doi)}</a>` : '';
-  const li = (g, extra) => `<li data-i="${g}">${esc(ALL[g].short)} — ${esc(ALL[g].title.slice(0, 70))} <span class="d">${extra || ''}</span></li>`;
   const why = [d.citers.length >= 2 ? `村田の論文 ${d.citers.length} 本に引かれている` : (d.citers.length ? '村田の論文 1 本に引かれている' : ''), d.crank <= 100 ? `題・要旨の近さで ${d.crank} 位` : ''].filter(Boolean).join('，');
-  let h = `<div class="small" style="color:var(--accent)">◇ 関連文献 (村田の著作ではない)</div><div class="title">${esc(d.title)}</div>
-    <div class="meta">${esc(d.authors.slice(0, 8).join('; '))}${d.authors.length > 8 ? ' ほか' : ''}<br>${d.year || ''} · ${esc(d.venue)} ${link}<br>
-    <span class="small">library.bib · ${esc(d.id)} · ${esc(d.type)}${d.fulltext ? ' · 全文あり' : ''}${d.nref ? ' · 照合した参考文献 ' + d.nref : ''}</span><br><span class="small">選ばれた理由: ${why}</span></div>`;
-  if (d.abstract) h += `<div class="abs">${esc(d.abstract)}</div>`;
-  if (d.concepts.length) h += `<h2 style="font-size:12px;margin:10px 0 3px">概念 (辞書で多いもの)</h2><div class="tags">${d.concepts.map(c => `<span>${esc(c)}</span>`).join('')}</div>`;
+  let h = `<div class="small" style="color:var(--accent)">◇ 関連文献 (村田の著作ではない)</div><div class="title">${esc(d.title)}</div><div class="meta">${esc(shortAuthors(d))} · ${d.year || ''}</div>`;
+  h += sec('info', '書誌と選ばれた理由', `<div class="meta">${esc(d.authors.slice(0, 8).join('; '))}${d.authors.length > 8 ? ' ほか' : ''}<br>${d.year || ''} · ${esc(d.venue)} ${link}<br>
+    <span class="small">library.bib · ${esc(d.id)} · ${esc(d.type)}${d.fulltext ? ' · 全文あり' : ''}${d.nref ? ' · 照合した参考文献 ' + d.nref : ''}</span><br><span class="small">選ばれた理由: ${why}</span></div>`);
+  if (d.abstract) h += sec('abs', '要旨', `<div class="abs">${esc(d.abstract)}</div>`);
+  if (d.concepts.length) h += sec('concept', '概念と主題', `<div class="tags">${d.concepts.map(c => `<span>${esc(c)}</span>`).join('')}</div>`);
+  let nbh = '';
   PANES.slice(0, S.layout).forEach(p => {
     if (!p.res) return; const k = d.i - N, o = p.res.RY[k], a = p.res.RD && p.res.RD[k];
-    const how = !o ? 'この地図には置けない (データも引用もない)' : { B: 'B: 乖離度から差し込み', C: 'C: 引いている論文の重心 (この尺度にデータなし)', D: 'D: 概念辞書で近い村田の論文の重心 (この尺度にデータなし)', E: 'E: 対応分析の列の主座標' }[o.how];
-    h += `<h2 style="font-size:12px;margin:10px 0 3px">${p.id}: ${esc(how)}</h2>`;
-    if (a) { const nb = [...a.keys()].sort((x, y) => a[x] - a[y]).slice(0, 6); h += `<div class="small">差し込みに使った乖離度で近い村田の論文</div><ol>${nb.map(l => li(p.res.idx[l], a[l].toFixed(3))).join('')}</ol>`; }
+    nbh += `<div class="small" style="margin-top:4px">${p.id}: ${esc(!o ? 'この地図には置けない (データも引用もない)' : HOW[o.how])}</div>`;
+    if (a) { const nb = [...a.keys()].sort((x, y) => a[x] - a[y]).slice(0, 6); nbh += `<ol>${nb.map(l => LI(p.res.idx[l], a[l].toFixed(3))).join('')}</ol>`; }
   });
-  if (d.citers.length) h += `<h2 style="font-size:12px;margin:10px 0 3px">引いている村田の論文 (${d.citers.length})</h2><ol>${d.citers.map(g => li(g)).join('')}</ol>`;
-  else h += `<h2 style="font-size:12px;margin:10px 0 3px">題・要旨が近い村田の論文</h2><ol>${d.nearest.map(g => li(g)).join('')}</ol>`;
-  el.innerHTML = h;
-  el.querySelectorAll('li[data-i]').forEach(x => x.onclick = () => { S.sel = +x.dataset.i; S.sel2 = null; showDetail(); render(); });
+  h += sec('nb', '置き方と近い村田の論文', nbh);
+  h += d.citers.length ? sec('cite', `引いている村田の論文 (${d.citers.length})`, `<ol>${d.citers.map(g => LI(g)).join('')}</ol>`)
+                       : sec('cite', '題・要旨が近い村田の論文', `<ol>${d.nearest.map(g => LI(g)).join('')}</ol>`);
+  el.innerHTML = h; wireDetail(el);
 }
 function overview() {
   let h = '<h2 style="font-size:12px;margin:12px 0 4px">乖離度の候補</h2>';
@@ -872,7 +913,7 @@ function mixUI() {
   box.querySelectorAll('input').forEach(inp => inp.onchange = () => { const k = inp.dataset.k; PANES.forEach(p => { p.spec.weights[k] = +inp.value; }); $('#w_' + k).textContent = inp.value;
     PANES.slice(0, S.layout).forEach(p => { if (p.spec.metric === 'mix') compute(p); }); });
 }
-const _sd = showDetail; showDetail = function () { _sd(); mixUI(); };
+
 
 // ============================================================ 乖離度どうしの比較
 function compareTable() {
@@ -932,8 +973,8 @@ $('#thOn').checked = S.thOn; $('#thOn').onchange = e => { S.thOn = e.target.chec
 $('#hideOff').onchange = e => { S.hideOff = e.target.checked; render(); };
 $('#q').onkeydown = e => { if (e.key !== 'Enter') return; const q = e.target.value.trim().toLowerCase(); S.hits = new Set();
   if (q) ALL.forEach(d => { if (d.rel && !extVisible(d)) return; if ((d.title + ' ' + d.authors.join(' ') + ' ' + d.concepts.join(' ') + ' ' + d.venue + ' ' + d.year).toLowerCase().includes(q)) S.hits.add(d.i); });
-  $('#qres').textContent = q ? `${S.hits.size} 件` : ''; if (S.hits.size === 1) { S.sel = [...S.hits][0]; showDetail(); if (isNarrow()) openDetail(); } render(); };
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { S.sel = S.sel2 = null; S.hits = new Set(); $('#q').value = ''; $('#qres').textContent = ''; $('#modal').classList.remove('show'); showDetail(); render(); } });
+  $('#qres').textContent = q ? `${S.hits.size} 件` : ''; if (S.hits.size === 1) { S.sel = [...S.hits][0]; showDetail(); if (isNarrow()) { closePanel(); showPeek(S.sel); } } render(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { S.sel = S.sel2 = null; S.hits = new Set(); $('#q').value = ''; $('#qres').textContent = ''; $('#modal').classList.remove('show'); hidePeek(); showDetail(); render(); } });
 $('#lay1').onclick = () => { S.layout = 1; $('#lay1').classList.add('on'); $('#lay2').classList.remove('on'); buildPanes(); };
 $('#lay2').onclick = () => { S.layout = 2; $('#lay2').classList.add('on'); $('#lay1').classList.remove('on'); buildPanes(); };
 $('#btnCmp').onclick = () => { closePanel(); compareTable(); };
@@ -948,11 +989,13 @@ function NOHOVER() { return matchMedia('(hover: none)').matches; }
 function setHdr() { document.documentElement.style.setProperty('--hdr-h', document.querySelector('header').offsetHeight + 'px'); }
 function scrim() { $('#scrim').classList.toggle('show', $('#panel').classList.contains('open')); }
 function closePanel() { $('#panel').classList.remove('open'); scrim(); }
-function openDetail() { $('#detailBox').classList.add('open'); closePanel(); }
+function openDetail() { $('#detailBox').classList.add('open'); closePanel(); hidePeek(); }
 $('#btnPanel').onclick = () => { $('#panel').classList.toggle('open'); $('#detailBox').classList.remove('open'); scrim(); };
-$('#btnDetail').onclick = () => { $('#detailBox').classList.toggle('open'); closePanel(); };
+$('#btnDetail').onclick = () => { $('#detailBox').classList.toggle('open'); closePanel(); hidePeek(); };
 $('#closeDetail').onclick = () => $('#detailBox').classList.remove('open');
 $('#scrim').onclick = closePanel;
+$('#peekBody').onclick = openDetail;
+$('#peekClose').onclick = e => { e.stopPropagation(); hidePeek(); };
 setHdr();
 if (S.layout === 2) { $('#lay2').classList.add('on'); $('#lay1').classList.remove('on'); }
 legend(); showDetail(); buildPanes();
