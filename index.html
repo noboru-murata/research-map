@@ -48,7 +48,7 @@ main { display: grid; grid-template-columns: 250px 1fr 330px; min-height: 0; }
 aside { overflow-y: auto; padding: 10px 12px; border-right: 1px solid var(--line); background: var(--surface-1); }
 aside.right { border-right: 0; border-left: 1px solid var(--line); }
 aside h2 { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 12px 0 5px; letter-spacing: .02em; }
-aside h2:first-child { margin-top: 0; }
+aside h2:first-child, #mobTools + h2 { margin-top: 0; }
 label.row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
 .small { font-size: 11.5px; color: var(--text-muted); }
 .legend div { display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 1px 2px; border-radius: 4px; }
@@ -91,21 +91,57 @@ table.cmp th { font-weight: 500; color: var(--text-secondary); }
 #tip .small { font-size: 13px; }
 text.lab { font-size: 11.5px; fill: var(--text-secondary); pointer-events: none; paint-order: stroke; stroke: var(--surface-0); stroke-width: 3px; }
 input[type=range] { width: 100%; }
+.pane svg { touch-action: none; -webkit-user-select: none; user-select: none; }
+.mobile-only { display: none; }
+#scrim { display: none; }
+/* 携帯・狭い画面 (幅 900px 以下): 地図を全面に，設定は左からの引き出し，詳細は下からの板 */
+@media (max-width: 900px) {
+  body { font-size: 14px; }
+  header { padding: 6px 8px; gap: 6px; }
+  header h1 { font-size: 13.5px; margin: 0; }
+  #mobTools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  header .note, header .grow { display: none; }
+  header button, header #repoLink { font-size: 13px; padding: 4px 8px; }
+  .mobile-only { display: inline-block; }
+  .hide-narrow { display: none; }
+  .sheetbar.mobile-only { display: flex; }
+  main { grid-template-columns: 1fr; }
+  aside.left { position: fixed; top: var(--hdr-h, 80px); left: 0; bottom: 0; width: min(86vw, 330px); z-index: 30;
+    transform: translateX(-105%); transition: transform .2s ease; box-shadow: 4px 0 18px rgba(0,0,0,.35); border-right: 1px solid var(--line); }
+  aside.left.open { transform: none; }
+  aside.right { position: fixed; left: 0; right: 0; bottom: 0; max-height: 52vh; z-index: 25; border-left: 0; border-top: 1px solid var(--line);
+    border-radius: 14px 14px 0 0; transform: translateY(105%); transition: transform .2s ease; box-shadow: 0 -4px 18px rgba(0,0,0,.35); padding-top: 0; }
+  aside.right.open { transform: none; }
+  .sheetbar { position: sticky; top: 0; justify-content: flex-end; background: var(--surface-1); padding: 6px 0; z-index: 1; }
+  #scrim.show { display: block; position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.25); }
+  #panes.two { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+  .pane { border-right: 0; border-bottom: 1px solid var(--line); }
+  .pane .bar { gap: 4px; padding: 4px 6px; }
+  .pane .bar select, .pane .bar button, .pane .bar input { font-size: 12.5px; padding: 3px 5px; }
+  .pane .bar select.met { max-width: 46vw; }
+  .pane .eval { font-size: 11px; padding: 3px 6px; }
+  #tip { display: none !important; }
+  #modal .box { max-width: 96vw; padding: 10px 12px; }
+  .bars div { grid-template-columns: 120px 1fr 30px; }
+}
 .mixrow { display: grid; grid-template-columns: 1fr 70px 26px; gap: 4px; align-items: center; font-size: 11.5px; }
 </style>
 </head>
 <body>
 <header>
+  <button id="btnPanel" class="mobile-only" title="色分け・表示・関連文献などの設定">≡ 設定</button>
   <h1>N. Murata の研究の地図</h1>
   <span class="note" id="hdrnote"></span>
   <span class="grow"></span>
-  <span class="seg"><button id="lay1" class="on">1 枚</button><button id="lay2">2 枚で比べる</button></span>
-  <button id="btnCmp" title="乖離度どうしの一致を表で見る">乖離度どうしの比較</button>
-  <a id="repoLink" href="https://github.com/noboru-murata/research-map#readme" target="_blank" rel="noopener" title="使い方と作り方の説明 (GitHub の README)">説明 (GitHub)</a>
+  <span id="hdrTools"><span class="seg"><button id="lay1" class="on">1 枚</button><button id="lay2">2 枚で比べる</button></span>
+  <button id="btnCmp" title="乖離度どうしの一致を表で見る">乖離度どうしの比較</button></span>
+  <a id="repoLink" href="https://github.com/noboru-murata/research-map#readme" target="_blank" rel="noopener" title="使い方と作り方の説明 (GitHub の README)">説明<span class="hide-narrow"> (GitHub)</span></a>
+  <button id="btnDetail" class="mobile-only">詳細</button>
   <button id="btnTheme">明暗</button>
 </header>
 <main>
-<aside>
+<aside class="left" id="panel">
+  <div id="mobTools" class="mobile-only"></div>
   <h2>色分け</h2>
   <select id="colorBy" style="width:100%">
     <option value="group">主題 (概念辞書の大分類)</option>
@@ -148,7 +184,8 @@ input[type=range] { width: 100%; }
   <div class="small" style="margin-top:8px">ホイールで拡大，ドラッグで移動 (3D では回転．Shift＋ドラッグで移動)，ダブルクリックで元に．点をクリックで詳細 (Shift で比べる先も)．Esc で解除．</div>
 </aside>
 <div id="panes"></div>
-<aside class="right" id="detail"><div class="small">点をクリックすると，題・要旨・概念・乖離度で近い文献を出します．</div></aside>
+<aside class="right" id="detailBox"><div class="sheetbar mobile-only"><button id="closeDetail">× 閉じる</button></div><div id="detail"><div class="small">点をクリックすると，題・要旨・概念・乖離度で近い文献を出します．</div></div></aside>
+<div id="scrim"></div>
 </main>
 <div id="tip"></div>
 <div id="modal"><div class="box" id="modalBox"></div></div>
@@ -530,17 +567,40 @@ function setAngle(p, a) { (linked(p) ? PANES : [p]).forEach(q => { q.ang = a.sli
 function startSpin(p) { stopSpin(p); p.spin = setInterval(() => { const a = angleOf(p); setAngle(p, [a[0] + .012, a[1]]); }, 30); p.el.querySelector('.spin').classList.add('on'); }
 function stopSpin(p) { if (p.spin) clearInterval(p.spin); p.spin = null; p.el?.querySelector('.spin')?.classList.remove('on'); }
 function setupZoom(p) {
-  const svg = p.el.querySelector('svg'); let drag = null;
+  const svg = p.el.querySelector('svg'); let drag = null, pinch = null, lastTap = 0; const ptr = new Map();
   svg.addEventListener('wheel', e => { e.preventDefault(); const r = svg.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, f = Math.exp(-e.deltaY * .0015);
     p.view.tx = mx - (mx - p.view.tx) * f; p.view.ty = my - (my - p.view.ty) * f; p.view.s *= f; renderPane(p); }, { passive: false });
-  // 3D: ドラッグで回す，Shift＋ドラッグで動かす．2D: ドラッグで動かす
-  svg.addEventListener('mousedown', e => { if (e.target.dataset.i !== undefined) return; const a = angleOf(p);
-    drag = { x: e.clientX, y: e.clientY, tx: p.view.tx, ty: p.view.ty, rot: p.spec.dim === 3 && !e.shiftKey, a0: a.slice() }; if (drag.rot) stopSpin(p); svg.classList.add('drag'); });
-  window.addEventListener('mousemove', e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  // 3D: ドラッグで回す，Shift＋ドラッグで動かす．2D: ドラッグで動かす．指でも同じ (2 本指で拡大・縮小)．5px 動くまではタップ (点の選択) とみなす
+  const resetView = () => { p.view = { s: 1, tx: 0, ty: 0 }; if (p.spec.dim === 3) setAngle(p, [.6, .45]); else renderPane(p); };
+  svg.addEventListener('pointerdown', e => {
+    ptr.set(e.pointerId, [e.clientX, e.clientY]);
+    if (ptr.size === 2) { const [a, b] = [...ptr.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, s: p.view.s, tx: p.view.tx, ty: p.view.ty, mx: (a[0] + b[0]) / 2, my: (a[1] + b[1]) / 2 }; drag = null; return; }
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, tx: p.view.tx, ty: p.view.ty, rot: p.spec.dim === 3 && !e.shiftKey, a0: angleOf(p).slice(), moved: false, onPoint: e.target.dataset.i !== undefined };
+  });
+  window.addEventListener('pointermove', e => {
+    if (!ptr.has(e.pointerId)) return; ptr.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pinch && ptr.size >= 2) {
+      const [a, b] = [...ptr.values()], f = (Math.hypot(a[0] - b[0], a[1] - b[1]) || 1) / pinch.d, r = svg.getBoundingClientRect(), mx = pinch.mx - r.left, my = pinch.my - r.top;
+      p.view.s = pinch.s * f; p.view.tx = mx - (mx - pinch.tx) * f; p.view.ty = my - (my - pinch.ty) * f; renderPane(p); return;
+    }
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.moved) { if (Math.hypot(dx, dy) < 5) return; drag.moved = true; svg.classList.add('drag'); if (drag.rot) stopSpin(p); }
     if (drag.rot) setAngle(p, [drag.a0[0] + dx * .008, Math.max(-Math.PI / 2, Math.min(Math.PI / 2, drag.a0[1] + dy * .008))]);
-    else { p.view.tx = drag.tx + dx; p.view.ty = drag.ty + dy; renderPane(p); } });
-  window.addEventListener('mouseup', () => { drag = null; svg.classList.remove('drag'); });
-  svg.addEventListener('dblclick', () => { p.view = { s: 1, tx: 0, ty: 0 }; if (p.spec.dim === 3) setAngle(p, [.6, .45]); else renderPane(p); });
+    else { p.view.tx = drag.tx + dx; p.view.ty = drag.ty + dy; renderPane(p); }
+  });
+  const end = e => {
+    if (!ptr.has(e.pointerId)) return; ptr.delete(e.pointerId); if (ptr.size < 2) pinch = null;
+    if (drag && drag.id === e.pointerId) {
+      if (drag.moved) { p.justDragged = true; setTimeout(() => { p.justDragged = false; }, 60); }
+      else if (!drag.onPoint && e.pointerType !== 'mouse') {          // 背景のタップ: 引き出しを閉じる．素早い 2 回で元の視点
+        closePanel(); const now = Date.now(); if (now - lastTap < 320) resetView(); lastTap = now;
+      }
+      drag = null; svg.classList.remove('drag');
+    }
+  };
+  window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+  svg.addEventListener('dblclick', resetView);
 }
 function compute(p) {
   const busy = p.el.querySelector('.busy'); busy.classList.add('show');
@@ -695,10 +755,10 @@ function renderPane(p) {
   svg.innerHTML = `<defs><marker id="ar${p.id}" viewBox="0 0 6 6" refX="9" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0L6,3L0,6z" fill="${css('--cite')}"/></marker></defs>` + out.join('');
   svg.querySelectorAll('[data-i]').forEach(el => {
     const i = +el.dataset.i;
-    el.onmouseenter = e => { S.hover = i; tip(e, ALL[i]); hoverOthers(p); };
+    el.onmouseenter = e => { if (NOHOVER()) return; S.hover = i; tip(e, ALL[i]); hoverOthers(p); };
     el.onmousemove = e => tip(e, ALL[i]);
     el.onmouseleave = () => { S.hover = null; $('#tip').style.display = 'none'; hoverOthers(p); };
-    el.onclick = e => { if (e.shiftKey) S.sel2 = S.sel2 === i ? null : i; else { S.sel = i; S.sel2 = null; } showDetail(); render(); };
+    el.onclick = e => { if (p.justDragged) return; if (e.shiftKey) S.sel2 = S.sel2 === i ? null : i; else { S.sel = i; S.sel2 = null; } showDetail(); render(); if (isNarrow()) openDetail(); };
     el.style.cursor = 'pointer';
   });
   const cnt = (kind, how) => relVis.filter((o, k) => o && EXT[k].kind === kind && o.how === how).length;
@@ -872,14 +932,28 @@ $('#thOn').checked = S.thOn; $('#thOn').onchange = e => { S.thOn = e.target.chec
 $('#hideOff').onchange = e => { S.hideOff = e.target.checked; render(); };
 $('#q').onkeydown = e => { if (e.key !== 'Enter') return; const q = e.target.value.trim().toLowerCase(); S.hits = new Set();
   if (q) ALL.forEach(d => { if (d.rel && !extVisible(d)) return; if ((d.title + ' ' + d.authors.join(' ') + ' ' + d.concepts.join(' ') + ' ' + d.venue + ' ' + d.year).toLowerCase().includes(q)) S.hits.add(d.i); });
-  $('#qres').textContent = q ? `${S.hits.size} 件` : ''; if (S.hits.size === 1) { S.sel = [...S.hits][0]; showDetail(); } render(); };
+  $('#qres').textContent = q ? `${S.hits.size} 件` : ''; if (S.hits.size === 1) { S.sel = [...S.hits][0]; showDetail(); if (isNarrow()) openDetail(); } render(); };
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { S.sel = S.sel2 = null; S.hits = new Set(); $('#q').value = ''; $('#qres').textContent = ''; $('#modal').classList.remove('show'); showDetail(); render(); } });
 $('#lay1').onclick = () => { S.layout = 1; $('#lay1').classList.add('on'); $('#lay2').classList.remove('on'); buildPanes(); };
 $('#lay2').onclick = () => { S.layout = 2; $('#lay2').classList.add('on'); $('#lay1').classList.remove('on'); buildPanes(); };
-$('#btnCmp').onclick = compareTable;
+$('#btnCmp').onclick = () => { closePanel(); compareTable(); };
 $('#modal').onclick = e => { if (e.target.id === 'modal') $('#modal').classList.remove('show'); };
 $('#btnTheme').onclick = () => { const r = document.documentElement; r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark'; legend(); render(); };
-window.addEventListener('resize', render);
+window.addEventListener('resize', () => { placeTools(); setHdr(); render(); });
+// 狭い画面では「1 枚 / 2 枚」と「乖離度どうしの比較」を設定の引き出しに移す (上の帯を 1 行にする)
+function placeTools() { const t = $('#hdrTools'); if (isNarrow()) { if (t.parentNode !== $('#mobTools')) $('#mobTools').appendChild(t); } else if (t.parentNode !== document.querySelector('header')) document.querySelector('header').insertBefore(t, $('#repoLink')); }
+placeTools();
+function isNarrow() { return matchMedia('(max-width: 900px)').matches; }
+function NOHOVER() { return matchMedia('(hover: none)').matches; }
+function setHdr() { document.documentElement.style.setProperty('--hdr-h', document.querySelector('header').offsetHeight + 'px'); }
+function scrim() { $('#scrim').classList.toggle('show', $('#panel').classList.contains('open')); }
+function closePanel() { $('#panel').classList.remove('open'); scrim(); }
+function openDetail() { $('#detailBox').classList.add('open'); closePanel(); }
+$('#btnPanel').onclick = () => { $('#panel').classList.toggle('open'); $('#detailBox').classList.remove('open'); scrim(); };
+$('#btnDetail').onclick = () => { $('#detailBox').classList.toggle('open'); closePanel(); };
+$('#closeDetail').onclick = () => $('#detailBox').classList.remove('open');
+$('#scrim').onclick = closePanel;
+setHdr();
 if (S.layout === 2) { $('#lay2').classList.add('on'); $('#lay1').classList.remove('on'); }
 legend(); showDetail(); buildPanes();
 </script>
