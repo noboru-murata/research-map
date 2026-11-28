@@ -5,7 +5,7 @@
 (function () { var t = new URLSearchParams(location.search).get('theme'); document.documentElement.dataset.theme = t === 'light' ? 'light' : 'dark'; })();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>N. Murata の研究の地図</title>
+<title>研究室の文献地図</title>
 <!-- N. Murata の研究の地図 (公開版)．多次元尺度構成法などで文献を地図にする．ネットは要らない． -->
 <script src="data/rmap-data.js"></script>
 <style>
@@ -102,6 +102,20 @@ details.sec > summary::before { content: '▸ '; color: var(--text-muted); }
 details.sec[open] > summary::before { content: '▾ '; }
 details.sec .secbody { padding-bottom: 4px; }
 .pane .bar .seg.mode button { padding: 2px 7px; }
+.tabs { display: flex; margin-bottom: 10px; }
+.tabs button { flex: 1; }
+.pane .bar button.cur { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.drawpane { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+.drawpane h3 { font-size: 13px; margin: 0 0 6px; }
+.drawpane label { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
+.drawpane select { flex: 1; min-width: 0; }
+.drawpane .desc { margin: 3px 0 2px; }
+.opt { border-top: 1px solid var(--line); padding: 6px 0; }
+.opt .nm { font-weight: 600; font-size: 12.5px; }
+.opt .use { float: right; display: flex; gap: 4px; }
+.opt .use button { font-size: 11px; padding: 0 6px; }
+.badge { display: inline-block; font-size: 10.5px; border-radius: 8px; padding: 0 6px; margin-left: 4px; background: var(--accent); color: #fff; }
+.opt h4 { margin: 10px 0 2px; font-size: 12.5px; }
 /* 携帯・狭い画面 (幅 900px 以下): 地図を全面に，設定は左からの引き出し，詳細は下からの板 */
 @media (max-width: 900px) {
   body { font-size: 14px; }
@@ -144,13 +158,14 @@ details.sec .secbody { padding-bottom: 4px; }
 <body>
 <header>
   <button id="btnPanel" class="mobile-only" title="色分け・表示・関連文献などの設定">≡ 設定</button>
-  <h1>N. Murata の研究の地図</h1>
+  <h1>研究室の文献地図</h1>
   <span class="note" id="hdrnote"></span>
   <span class="grow"></span>
   <span id="hdrTools"><span class="seg"><button id="lay1" class="on">1 枚</button><button id="lay2">2 枚で比べる</button></span>
   <button id="btnCmp" title="乖離度どうしの一致を表で見る">乖離度どうしの比較</button></span>
+  <span class="seg" id="ovl" title="関連文献と修士論文を地図に重ねる (左の欄と連動)"><button id="tRel">◇ 関連<span class="hide-narrow">文献</span></button><button id="tTh">▲ 修<span class="hide-narrow">士</span>論<span class="hide-narrow">文</span></button></span>
   <a id="repoLink" href="https://github.com/noboru-murata/research-map#readme" target="_blank" rel="noopener" title="使い方と作り方の説明 (GitHub の README)">説明<span class="hide-narrow"> (GitHub)</span></a>
-  <button id="btnDetail" class="mobile-only">詳細</button>
+  <button id="btnDetail" class="mobile-only">描き方・詳細</button>
   <button id="btnTheme">明暗</button>
 </header>
 <main>
@@ -198,7 +213,9 @@ details.sec .secbody { padding-bottom: 4px; }
   <div class="small" style="margin-top:8px">ホイールで拡大，ドラッグで移動 (3D では回転．Shift＋ドラッグで移動)，ダブルクリックで元に．点をクリックで詳細 (Shift で比べる先も)．Esc で解除．</div>
 </aside>
 <div id="panes"></div>
-<aside class="right" id="detailBox"><div class="sheetbar mobile-only"><button id="closeDetail">× 閉じる</button></div><div id="detail"><div class="small">点をクリックすると，題・要旨・概念・乖離度で近い文献を出します．</div></div></aside>
+<aside class="right" id="detailBox"><div class="sheetbar mobile-only"><button id="closeDetail">× 閉じる</button></div>
+  <div class="tabs seg"><button data-t="draw">地図の描き方</button><button data-t="detail">文献の詳細</button></div>
+  <div id="drawTab"></div><div id="detail"></div></aside>
 <div id="scrim"></div>
 <div id="peek"><div id="peekBody"></div><button id="peekClose" aria-label="閉じる">×</button></div>
 </main>
@@ -508,7 +525,7 @@ const S = { colorBy: 'group', theme: 0, hidden: new Set(), yearOn: false, year: 
   sel: null, sel2: null, hover: null, hits: new Set(), layout: 1, thOn: false, relOn: false, openSec: new Set(matchMedia('(max-width: 900px)').matches ? [] : ['nb']), relCited: true, relMin: 2, relContent: true, relTop: 30 };
 const METHODS = [['cmds', '古典的 MDS'], ['smacof', '計量的 MDS (SMACOF)'], ['nmds', '非計量 MDS'], ['sammon', 'Sammon'], ['tsne', 't-SNE']];
 const NOTE_M = {
-  cmds: '乖離度の二乗を二重中心化して内積の行列にし，上位 2 つの固有ベクトルで置く．反復なし．',
+  cmds: '乖離度の二乗を二重中心化して内積の行列にし，上位 2 つ (3D では 3 つ) の固有ベクトルで置く．反復なし．',
   smacof: 'ストレス Σ(d − δ)² を SMACOF の反復で減らす．初期値は古典的 MDS．',
   nmds: 'δ の大小の順序だけを保つ (Kruskal)．飽和した乖離度 (ほとんどが 1 に近い) でも広がる．',
   sammon: '近い組の誤差を重く見る Σ(d − δ)²/δ．',
@@ -535,14 +552,9 @@ METRICS.forEach(m => { PANES.forEach(p => { p.spec.weights[m.key] = ['concept', 
 
 // ============================================================ 枠 (pane) を作る
 function paneHTML(p) {
-  const opts = METRICS.map(m => `<option value="${m.key}">${m.name} (${m.idx.length})</option>`).join('') + '<option value="mix">混合 (重みを選ぶ)</option>' + `<option value="ca">E: 対応分析 (論文 × 引用文献) (${CA ? CA.shape[0] : 0})</option>`;
   return `<div class="bar"><b>${p.id}</b>
     <span class="seg dim" title="地図の次元"><button data-d="2">2D</button><button data-d="3">3D</button></span>
-    <select class="met" title="乖離度">${opts}</select>
-    <select class="trf" title="変換"><option value="none">そのまま</option><option value="geo">測地 (k 近傍)</option><option value="rank">順位</option></select>
-    <select class="mth" title="当てはめ方">${METHODS.map(m => `<option value="${m[0]}">${m[1]}</option>`).join('')}</select>
-    <span class="kbox small">k <input type="number" class="k" min="3" max="30" style="width:44px"></span>
-    <span class="pbox small">perp <input type="number" class="perp" min="3" max="50" style="width:44px"></span>
+    <button class="cur" title="地図の描き方 (乖離度・変換・当てはめ方) を右の欄で選ぶ"></button>
     <span class="rbox"><span class="seg mode" title="1 本指 (マウス) のドラッグで回すか動かすか．2 本指・右ボタン・Shift＋ドラッグはいつも移動"><button data-m="rotate">↻ 回転</button><button data-m="pan">✥ 移動</button></span>
       <button class="spin" title="縦の軸のまわりに回し続ける">⟳ 自動</button>
       <span class="seg"><button class="vw" data-v="top" title="第 1・第 2 軸の面を正面から">正面</button><button class="vw" data-v="side" title="第 1・第 3 軸の面">横</button><button class="vw" data-v="obl" title="斜めから">斜</button></span></span>
@@ -556,10 +568,7 @@ function buildPanes() {
   PANES.slice(0, S.layout).forEach(p => {
     const el = document.createElement('div'); el.className = 'pane'; el.innerHTML = paneHTML(p); host.appendChild(el); p.el = el;
     const q = s => el.querySelector(s);
-    q('.met').value = p.spec.metric; q('.trf').value = p.spec.transform; q('.mth').value = p.spec.method; q('.k').value = p.spec.k; q('.perp').value = p.spec.perp;
-    const sync = () => { const ca = p.spec.metric === 'ca';
-      q('.trf').style.display = q('.mth').style.display = ca ? 'none' : '';
-      q('.kbox').style.display = !ca && p.spec.transform === 'geo' ? '' : 'none'; q('.pbox').style.display = !ca && p.spec.method === 'tsne' ? '' : 'none';
+    const sync = () => { q('.cur').textContent = curLabel(p) + ' ▸';
       q('.rbox').style.display = p.spec.dim === 3 ? '' : 'none';
       el.querySelectorAll('.dim button').forEach(b => b.classList.toggle('on', +b.dataset.d === p.spec.dim)); };
     sync();
@@ -568,15 +577,13 @@ function buildPanes() {
     const syncMode = () => el.querySelectorAll('.mode button').forEach(b => b.classList.toggle('on', b.dataset.m === (p.dragMode || 'rotate')));
     el.querySelectorAll('.mode button').forEach(b => b.onclick = () => { p.dragMode = b.dataset.m; syncMode(); }); syncMode();
     el.querySelectorAll('.vw').forEach(b => b.onclick = () => { stopSpin(p); setAngle(p, { top: [0, 0], side: [0, Math.PI / 2], obl: [.6, .45] }[b.dataset.v]); });
-    q('.met').onchange = e => { p.spec.metric = e.target.value; sync(); compute(p); };
-    q('.trf').onchange = e => { p.spec.transform = e.target.value; sync(); compute(p); };
-    q('.mth').onchange = e => { p.spec.method = e.target.value; sync(); compute(p); };
-    q('.k').onchange = e => { p.spec.k = +e.target.value; compute(p); };
-    q('.perp').onchange = e => { p.spec.perp = +e.target.value; compute(p); };
+    q('.cur').onclick = () => { setTab('draw'); if (isNarrow()) openDetail(); };
+    p.syncBar = sync;
     if (q('.align')) q('.align').onchange = () => { p.alignF = null; render(); };
     setupZoom(p);
   });
   PANES.slice(0, S.layout).forEach(p => compute(p));
+  renderDraw();
 }
 // 3 次元の視点: yaw (縦の軸のまわり) と pitch (横の軸のまわり)．B が A に向きを合わせていて両方 3D なら視点も連動する
 function linked(p) { return S.layout === 2 && PANES[0].spec.dim === 3 && PANES[1].spec.dim === 3 && PANES[1].el && PANES[1].el.querySelector('.align')?.checked; }
@@ -652,7 +659,7 @@ function compute(p) {
     p.res = res; p.alignF = null; p.view = { s: 1, tx: 0, ty: 0 };
     busy.classList.remove('show');
     if (p.id === 'A' && PANES[1].res) PANES[1].alignF = null;
-    render(); showDetail();
+    render(); showDetail(); renderDraw(); p.syncBar && p.syncBar();
   }, 20);
 }
 // 描く座標: B は A に向きを合わせる (村田の論文の共通部分で Procrustes．関連文献にも同じ変換)
@@ -781,7 +788,7 @@ function renderPane(p) {
     el.onmouseenter = e => { if (NOHOVER()) return; S.hover = i; tip(e, ALL[i]); hoverOthers(p); };
     el.onmousemove = e => tip(e, ALL[i]);
     el.onmouseleave = () => { S.hover = null; $('#tip').style.display = 'none'; hoverOthers(p); };
-    el.onclick = e => { if (p.justDragged) return; if (e.shiftKey) S.sel2 = S.sel2 === i ? null : i; else { S.sel = i; S.sel2 = null; } showDetail(); render(); if (isNarrow()) showPeek(i); };
+    el.onclick = e => { if (p.justDragged) return; if (e.shiftKey) S.sel2 = S.sel2 === i ? null : i; else { S.sel = i; S.sel2 = null; } setTab('detail'); showDetail(); render(); if (isNarrow()) showPeek(i); };
     el.style.cursor = 'pointer';
   });
   const cnt = (kind, how) => relVis.filter((o, k) => o && EXT[k].kind === kind && o.how === how).length;
@@ -828,7 +835,7 @@ const LI = (g, extra, cls) => `<li data-i="${g}" class="${cls || ''}">${esc(ALL[
 const HOW = { B: 'B: 乖離度から差し込み', C: 'C: 引用でつながる村田の論文の重心 (この尺度にデータなし)', D: 'D: 概念辞書で近い村田の論文の重心 (この尺度にデータなし)', E: 'E: 対応分析の列の主座標' };
 function showDetail() {
   const el = $('#detail'), i = S.sel;
-  if (i === null) { el.innerHTML = '<div class="small">点をクリックすると，題・著者・年と，要旨・概念・近い文献などの見出しを出します (見出しを押すと開く)．Shift＋クリックでもう 1 点を選ぶと，2 点の間の乖離度を尺度ごとに並べます．</div>' + overview(); mixUI(); return; }
+  if (i === null) { el.innerHTML = '<div class="small">点をクリック (携帯ではタップ) すると，題・著者・年と，要旨・概念・近い文献などの見出しを出します (見出しを押すと開く)．Shift＋クリックでもう 1 点を選ぶと，2 点の間の乖離度を尺度ごとに並べます．</div>'; return; }
   if (i >= N) { ALL[i].kind === 'thesis' ? thesisDetail(el, ALL[i]) : relDetail(el, ALL[i]); return; }
   const d = DOCS[i], gname = d.group >= 0 ? R.groups[d.group].name : '';
   const link = d.doi ? `<a href="https://doi.org/${esc(d.doi)}" target="_blank">doi:${esc(d.doi)}</a>` : '';
@@ -893,6 +900,58 @@ function relDetail(el, d) {
                        : sec('cite', '題・要旨が近い村田の論文', `<ol>${d.nearest.map(g => LI(g)).join('')}</ol>`);
   el.innerHTML = h; wireDetail(el);
 }
+// ---------------------------------------------------------- 地図の描き方 (右の欄のタブ)
+const MNAME = k => k === 'mix' ? '混合 (重み付きの和)' : k === 'ca' ? 'E: 対応分析 (論文 × 引用文献)' : MET[k].name;
+const TNAME = { none: 'そのまま', geo: '測地 (k 近傍)', rank: '順位' };
+const MDESC = k => k === 'mix' ? '選んだ乖離度を重み付きで足す (それぞれ共通の文献の組の平均を 1 にそろえてから)．重みが 0 でない乖離度の全てにデータのある文献だけが残る．'
+  : k === 'ca' ? '「村田の論文 × 2 本以上に引かれている関連文献」の 0/1 の表を対応分析 (数量化 III 類) にかけ，論文と文献を同じ空間に置く．乖離度・変換・当てはめ方は使わない．' : MET[k].desc;
+function curLabel(p) { const s_ = p.spec; return s_.metric === 'ca' ? MNAME('ca') : `${MNAME(s_.metric).replace(/ \(.*\)$/, '')} · ${s_.transform === 'geo' ? '測地 k=' + s_.k : TNAME[s_.transform]} · ${METHODS.find(m => m[0] === s_.method)[1]}`; }
+function setTab(t) { S.tab = t; document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); $('#drawTab').style.display = t === 'draw' ? '' : 'none'; $('#detail').style.display = t === 'detail' ? '' : 'none'; if (t === 'draw') renderDraw(); }
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setTab(b.dataset.t));
+function applySpec(p, f, v) { p.spec[f] = v; if (p.el) { p.syncBar && p.syncBar(); compute(p); } renderDraw(); }
+function renderDraw() {
+  const el = $('#drawTab'); if (!el || S.tab !== 'draw') return;
+  const panes = PANES.slice(0, S.layout), view = S.drawView || 'cur';
+  let h = `<div class="seg" style="display:flex;margin-bottom:6px"><button data-dv="cur" style="flex:1" class="${view === 'cur' ? 'on' : ''}">いまの描き方</button><button data-dv="all" style="flex:1" class="${view === 'all' ? 'on' : ''}">選択肢の一覧</button></div>`;
+  if (view === 'cur') {
+    h += `<div class="small">地図は 3 段で作る: ① 文献の間の違い (乖離度) を測る → ② 必要なら変換する → ③ 当てはめ方で点の配置にする．2D / 3D は地図の上で切り替える．</div>`;
+    panes.forEach(p => {
+      const s_ = p.spec, ca = s_.metric === 'ca';
+      const mo = METRICS.map(m => `<option value="${m.key}"${s_.metric === m.key ? ' selected' : ''}>${esc(m.name)} (${m.idx.length})</option>`).join('') +
+        `<option value="mix"${s_.metric === 'mix' ? ' selected' : ''}>混合 (重み付きの和)</option><option value="ca"${ca ? ' selected' : ''}>E: 対応分析 (論文 × 引用文献)</option>`;
+      h += `<div class="drawpane" data-p="${p.id}"><h3>${S.layout === 2 ? '枠 ' + p.id + ' の地図' : 'いまの地図'}</h3>
+        <label>① 乖離度 <select data-f="metric">${mo}</select></label><div class="desc">${esc(MDESC(s_.metric))}</div>`;
+      if (s_.metric === 'mix') h += `<div class="mixbox"></div>`;
+      if (!ca) {
+        h += `<label>② 変換 <select data-f="transform">${Object.keys(TNAME).map(k => `<option value="${k}"${s_.transform === k ? ' selected' : ''}>${TNAME[k]}</option>`).join('')}</select>` +
+          (s_.transform === 'geo' ? `k <input type="number" data-f="k" min="3" max="30" value="${s_.k}" style="width:48px">` : '') + `</label>
+          <div class="desc">${NOTE_T[s_.transform]}${s_.transform === 'geo' ? ' k を小さくすると近い文献どうしのつながりだけで測り，大きくすると「そのまま」に近づく．' : ''}</div>
+          <label>③ 当てはめ方 <select data-f="method">${METHODS.map(m => `<option value="${m[0]}"${s_.method === m[0] ? ' selected' : ''}>${m[1]}</option>`).join('')}</select>` +
+          (s_.method === 'tsne' ? `perp <input type="number" data-f="perp" min="3" max="50" value="${s_.perp}" style="width:48px">` : '') + `</label>
+          <div class="desc">${NOTE_M[s_.method]}${s_.transform === 'geo' && s_.method === 'cmds' ? ' (測地 + 古典的 MDS = Isomap)' : ''}</div>`;
+      }
+      h += `</div>`;
+    });
+    h += `<div class="small">枠の下に当てはまり (ストレス，10 近傍の保存，順位相関) を出す．「選択肢の一覧」でほかの乖離度・変換・当てはめ方の説明を見られる．</div>`;
+  } else {
+    const use = (f, v) => panes.map(p => p.spec[f] === v ? `<span class="badge">${S.layout === 2 ? p.id : '使用中'}</span>` : '').join('');
+    const btns = (f, v) => `<span class="use">${panes.map(p => p.spec[f] === v ? '' : `<button data-p="${p.id}" data-f="${f}" data-v="${v}">${S.layout === 2 ? p.id + ' に' : '使う'}</button>`).join('')}</span>`;
+    const opt = (f, v, nm, d) => `<div class="opt">${btns(f, v)}<div class="nm">${esc(nm)}${use(f, v)}</div><div class="small">${esc(d)}</div></div>`;
+    h += `<h4>① 乖離度 (文献の間の違い)</h4>` + METRICS.map(m => opt('metric', m.key, `${m.name} [${m.group}] ${m.idx.length} 件`, m.desc)).join('') +
+      opt('metric', 'mix', '混合 (重み付きの和)', MDESC('mix')) + opt('metric', 'ca', 'E: 対応分析 (論文 × 引用文献)', MDESC('ca'));
+    h += `<h4>② 変換</h4>` + Object.keys(TNAME).map(k => opt('transform', k, TNAME[k], NOTE_T[k])).join('');
+    h += `<h4>③ 当てはめ方</h4>` + METHODS.map(([k, n]) => opt('method', k, n, NOTE_M[k])).join('');
+    h += `<h4>重ねる文献</h4><div class="small"><b>◇ 関連文献</b>: 村田の著作以外の library.bib の項目から ${REL.length} 件 (村田の論文 ${R.rel_rule.min_cited} 本以上に引かれているものと，題・要旨が村田の論文に近い上位 ${R.rel_rule.top_content} 件)．` +
+      (THS.length ? `<br><b>▲ 修士論文</b>: 村田研究室の ${THS.length} 件．` : '') +
+      `<br>どちらも村田の論文の地図は動かさず，乖離度から 1 点ずつ差し込む (B)．その尺度にデータが無いものは引用でつながる論文 (C) か概念辞書で近い論文 (D) の重心に置く．</div>`;
+  }
+  el.innerHTML = h;
+  el.querySelectorAll('[data-dv]').forEach(b => b.onclick = () => { S.drawView = b.dataset.dv; renderDraw(); });
+  el.querySelectorAll('.drawpane').forEach(box => { const p = PANES.find(q => q.id === box.dataset.p);
+    box.querySelectorAll('[data-f]').forEach(c => c.onchange = () => applySpec(p, c.dataset.f, c.type === 'number' ? +c.value : c.value));
+    if (box.querySelector('.mixbox')) mixUI(box.querySelector('.mixbox')); });
+  el.querySelectorAll('.opt .use button').forEach(b => b.onclick = () => applySpec(PANES.find(q => q.id === b.dataset.p), b.dataset.f, b.dataset.v));
+}
 function overview() {
   let h = '<h2 style="font-size:12px;margin:12px 0 4px">乖離度の候補</h2>';
   METRICS.forEach(m => { h += `<div class="desc"><b>${esc(m.name)}</b> <span class="small">[${esc(m.group)}] ${m.idx.length} 件</span><br>${esc(m.desc)}</div>`; });
@@ -906,11 +965,11 @@ function overview() {
   h += `<h2 style="font-size:12px;margin:12px 0 4px">混合の重み (A / B)</h2><div id="mixbox"></div>`;
   return h;
 }
-function mixUI() {
-  const box = $('#mixbox'); if (!box) return;
+function mixUI(box) {
+  if (!box) return;
   box.innerHTML = METRICS.map(m => `<div class="mixrow"><span>${esc(m.name)}</span><input type="range" min="0" max="3" step=".5" data-k="${m.key}" value="${PANES[0].spec.weights[m.key]}"><span class="small" id="w_${m.key}">${PANES[0].spec.weights[m.key]}</span></div>`).join('') +
     '<div class="small">重みは A と B で共通．「混合」を選んだ枠に効く．重みが 0 でない乖離度の全てにデータのある文献だけが残る (平均を 1 にそろえて足す)．</div>';
-  box.querySelectorAll('input').forEach(inp => inp.onchange = () => { const k = inp.dataset.k; PANES.forEach(p => { p.spec.weights[k] = +inp.value; }); $('#w_' + k).textContent = inp.value;
+  box.querySelectorAll('input').forEach(inp => inp.onchange = () => { const k = inp.dataset.k; PANES.forEach(p => { p.spec.weights[k] = +inp.value; }); box.querySelector('#w_' + k).textContent = inp.value;
     PANES.slice(0, S.layout).forEach(p => { if (p.spec.metric === 'mix') compute(p); }); });
 }
 
@@ -960,8 +1019,13 @@ $('#showNN').onchange = e => { S.showNN = e.target.checked; render(); };
 $('#kNN').onchange = e => { S.kNN = +e.target.value; render(); };
 $('#showLab').onchange = e => { S.showLab = e.target.checked; render(); };
 function relCount() { $('#relCount').textContent = S.relOn ? `${REL.filter(relVisible).length} 件を表示 (全 ${REL.length} 件)` : `全 ${REL.length} 件`; }
-$('#relOn').checked = S.relOn;
-$('#relOn').onchange = e => { S.relOn = e.target.checked; relCount(); render(); };
+// 重ね表示: 上の帯のスイッチと左の欄のチェックを連動させる
+function syncOverlay() { $('#relOn').checked = S.relOn; $('#thOn').checked = S.thOn; $('#tRel').classList.toggle('on', S.relOn); $('#tTh').classList.toggle('on', S.thOn); relCount(); }
+function setOverlay(k, v) { S[k] = v; syncOverlay(); render(); showDetail(); }
+$('#relOn').onchange = e => setOverlay('relOn', e.target.checked);
+$('#tRel').onclick = () => setOverlay('relOn', !S.relOn);
+$('#tTh').onclick = () => setOverlay('thOn', !S.thOn);
+if (!THS.length) $('#tTh').style.display = 'none';
 $('#relCited').onchange = e => { S.relCited = e.target.checked; relCount(); render(); };
 $('#relContent').onchange = e => { S.relContent = e.target.checked; relCount(); render(); };
 $('#relMin').onchange = e => { S.relMin = +e.target.value; relCount(); render(); };
@@ -969,12 +1033,12 @@ $('#relTop').onchange = e => { S.relTop = +e.target.value; relCount(); render();
 relCount();
 if (!THS.length) $('#thBox').style.display = 'none';      // 公開版には修士論文を入れない
 function thCount() { $('#thCount').textContent = THS.length ? `${THS.length} 件 (${Math.min(...THS.map(t => t.year))}〜${Math.max(...THS.map(t => t.year))} 年度)` : 'データなし'; }
-$('#thOn').checked = S.thOn; $('#thOn').onchange = e => { S.thOn = e.target.checked; render(); }; thCount();
+$('#thOn').onchange = e => setOverlay('thOn', e.target.checked); thCount(); syncOverlay();
 $('#hideOff').onchange = e => { S.hideOff = e.target.checked; render(); };
 $('#q').onkeydown = e => { if (e.key !== 'Enter') return; const q = e.target.value.trim().toLowerCase(); S.hits = new Set();
   if (q) ALL.forEach(d => { if (d.rel && !extVisible(d)) return; if ((d.title + ' ' + d.authors.join(' ') + ' ' + d.concepts.join(' ') + ' ' + d.venue + ' ' + d.year).toLowerCase().includes(q)) S.hits.add(d.i); });
-  $('#qres').textContent = q ? `${S.hits.size} 件` : ''; if (S.hits.size === 1) { S.sel = [...S.hits][0]; showDetail(); if (isNarrow()) { closePanel(); showPeek(S.sel); } } render(); };
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { S.sel = S.sel2 = null; S.hits = new Set(); $('#q').value = ''; $('#qres').textContent = ''; $('#modal').classList.remove('show'); hidePeek(); showDetail(); render(); } });
+  $('#qres').textContent = q ? `${S.hits.size} 件` : ''; if (S.hits.size === 1) { S.sel = [...S.hits][0]; setTab('detail'); showDetail(); if (isNarrow()) { closePanel(); showPeek(S.sel); } } render(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { S.sel = S.sel2 = null; S.hits = new Set(); $('#q').value = ''; $('#qres').textContent = ''; $('#modal').classList.remove('show'); hidePeek(); showDetail(); setTab('draw'); render(); } });
 $('#lay1').onclick = () => { S.layout = 1; $('#lay1').classList.add('on'); $('#lay2').classList.remove('on'); buildPanes(); };
 $('#lay2').onclick = () => { S.layout = 2; $('#lay2').classList.add('on'); $('#lay1').classList.remove('on'); buildPanes(); };
 $('#btnCmp').onclick = () => { closePanel(); compareTable(); };
@@ -998,7 +1062,7 @@ $('#peekBody').onclick = openDetail;
 $('#peekClose').onclick = e => { e.stopPropagation(); hidePeek(); };
 setHdr();
 if (S.layout === 2) { $('#lay2').classList.add('on'); $('#lay1').classList.remove('on'); }
-legend(); showDetail(); buildPanes();
+S.tab = 'draw'; legend(); setTab('draw'); showDetail(); buildPanes();
 </script>
 </body>
 </html>
